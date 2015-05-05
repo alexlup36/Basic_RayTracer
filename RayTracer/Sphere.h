@@ -49,8 +49,8 @@ public:
 		
 		float sqrtDiscr = sqrt(fDiscr);
 		
-		float t1 = -b - sqrtDiscr + fEPS;
-		float t2 = -b + sqrtDiscr + fEPS;
+		float t1 = -b - sqrtDiscr;
+		float t2 = -b + sqrtDiscr;
 		
 		if (t1 >= 0)
 		{

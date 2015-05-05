@@ -36,14 +36,22 @@ public:
 			float d = -glm::dot(m_vPointOnPlane, m_vNormal);
 			float fRayOrigDotNormal = glm::dot(ray.GetOrigin(), m_vNormal);
 			float fRayDirDotNormal = glm::dot(ray.GetDirection(), m_vNormal);
-			float t = -(fRayOrigDotNormal + d) / fRayDirDotNormal + fEPS;
+			float t = -(fRayOrigDotNormal + d) / fRayDirDotNormal;
 
-			vec3 IntersectionPoint = ray.GetOrigin() + t * ray.GetDirection();
+			if (t > fEPS)
+			{
+				vec3 IntersectionPoint = ray.GetOrigin() + t * ray.GetDirection();
 
-			return IntersectionInfo(IntersectionPoint,
-				glm::length(t * ray.GetDirection()),
-				m_vNormal,
-				this);
+				return IntersectionInfo(IntersectionPoint,
+					glm::length(t * ray.GetDirection()),
+					m_vNormal,
+					this);
+			}
+			else
+			{
+				return IntersectionInfo(vec3(0.0f), -1.0f, vec3(0.0f), NULL);
+			}
+			
 		}
 	}
 

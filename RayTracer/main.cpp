@@ -33,6 +33,7 @@ sf::RenderWindow window(sf::VideoMode(iWidth, iHeight, iColor), "RayTracer"/*, s
 
 // -----------------------------------------------------------------------------
 
+std::vector<DirectionalLight*> lightSources;
 DirectionalLight light;
 Camera* pCam;
 sf::Uint8* pixels = new sf::Uint8[iWidth * iHeight * 4];
@@ -49,36 +50,72 @@ void SetPixelColor(int iCurrentPixel, sf::Uint8 r, sf::Uint8 g, sf::Uint8 b, sf:
 
 // -----------------------------------------------------------------------------
 
-Color FindColor(const IntersectionInfo& intersect)
+Color FindColor(const IntersectionInfo& intersect, std::vector<DirectionalLight*> lightSources)
 {
-	Color finalColor;
+
+	//Color finalColor;
+	//Object* pHitObject = intersect.HitObject;
+	//Material& hitObjectMaterial = pHitObject->GetMaterial();
+
+	//// Compute the diffuse term
+	//float fNormalDotLight = glm::dot(intersect.NormalAtIntersection, light.Direction);
+
+	//Color& vDiffuse = hitObjectMaterial.Diffuse * light.DiffuseLight * glm::max<float>(fNormalDotLight, 0.0f);
+
+	//// Compute the specular term
+	//vec3& vViewVector = glm::normalize(pCam->GetCameraPosition() - intersect.IntersectionPoint);
+	//	
+	//// Phong Shading 
+	//vec3& vReflectedLight = glm::normalize(glm::reflect<vec3>(-light.Direction, intersect.NormalAtIntersection));
+	//float fReflectedDotView = glm::dot(vReflectedLight, vViewVector);
+	//Color vSpecular = hitObjectMaterial.Specular *
+	//					light.SpecularLight *
+	//					glm::pow(glm::max<float>(fReflectedDotView, 0.0f), hitObjectMaterial.Shininess);
+
+	//// Blinn-Phong shading
+	///*vec3 vHalfwayVector = glm::normalize(vViewVector + light.Direction);
+	//float fNormalDotHalf = glm::dot(intersect.NormalAtIntersection, vHalfwayVector);
+	//Color vSpecular = pHitObject->GetMaterial().Specular *
+	//					light.SpecularLight *
+	//					glm::pow(glm::max<float>(fNormalDotHalf, 0.0f), intersect.HitObject->GetMaterial().Shininess);*/
+
+	//finalColor = AmbientColor + vDiffuse + vSpecular;
+	//
+	//return finalColor;
+
+	Color finalColor, diffuseColor, specularColor;
 	Object* pHitObject = intersect.HitObject;
 	Material& hitObjectMaterial = pHitObject->GetMaterial();
 
-	// Compute the diffuse term
-	float fNormalDotLight = glm::dot(intersect.NormalAtIntersection, light.Direction);
+	// Go through all the lights in the scene
+	for (unsigned int lightIndex = 0; lightIndex < lightSources.size(); lightIndex++)
+	{
+		// Get the current light source
+		DirectionalLight& currentLight = *lightSources[lightIndex];
 
-	Color& vDiffuse = hitObjectMaterial.Diffuse * light.DiffuseLight * glm::max<float>(fNormalDotLight, 0.0f);
+		// Compute the diffuse term
+		float fNormalDotLight = glm::dot(intersect.NormalAtIntersection, currentLight.Direction);
+		if (fNormalDotLight > 0.0f)
+		{
+			// Test for shadow
+			bool bInShadow = false;
 
-	// Compute the specular term
-	vec3& vViewVector = glm::normalize(pCam->GetCameraPosition() - intersect.IntersectionPoint);
+			diffuseColor = hitObjectMaterial.Diffuse * currentLight.DiffuseLight * fNormalDotLight;
+
+			// Compute the specular term using Phong Shading
+			vec3& vViewVector = glm::normalize(pCam->GetCameraPosition() - intersect.IntersectionPoint);
+			vec3& vReflectedLight = glm::normalize(glm::reflect<vec3>(-light.Direction, intersect.NormalAtIntersection));
+			float fReflectedDotView = glm::dot(vReflectedLight, vViewVector);
+			specularColor = hitObjectMaterial.Specular *
+				light.SpecularLight *
+				glm::pow(glm::max<float>(fReflectedDotView, 0.0f), hitObjectMaterial.Shininess);
+
+		}
 		
-	// Phong Shading 
-	vec3& vReflectedLight = glm::normalize(glm::reflect<vec3>(-light.Direction, intersect.NormalAtIntersection));
-	float fReflectedDotView = glm::dot(vReflectedLight, vViewVector);
-	Color vSpecular = hitObjectMaterial.Specular *
-						light.SpecularLight *
-						glm::pow(glm::max<float>(fReflectedDotView, 0.0f), hitObjectMaterial.Shininess);
+		// Compute the final color
+		finalColor = AmbientColor + diffuseColor + specularColor;
+	}
 
-	// Blinn-Phong shading
-	/*vec3 vHalfwayVector = glm::normalize(vViewVector + light.Direction);
-	float fNormalDotHalf = glm::dot(intersect.NormalAtIntersection, vHalfwayVector);
-	Color vSpecular = pHitObject->GetMaterial().Specular *
-						light.SpecularLight *
-						glm::pow(glm::max<float>(fNormalDotHalf, 0.0f), intersect.HitObject->GetMaterial().Shininess);*/
-
-	finalColor = AmbientColor + vDiffuse + vSpecular;
-	
 	return finalColor;
 }
 
@@ -163,6 +200,10 @@ int main(int argc, char **argv)
 	float fHalfWidth	= iWidth * 0.5f;
 	float fHalfHeight	= iHeight * 0.5f;
 
+	// ------------------------------------------------------------------------
+
+	// Light
+	lightSources.push_back(&light);
 	// ------------------------------------------------------------------------
 
 	std::shared_ptr<Sphere> pSphere		= std::make_shared<Sphere>(vec3(1.0f, 1.0f, 5.0f), 0.2f);
@@ -273,6 +314,8 @@ int main(int argc, char **argv)
 
 				float fAlpha = fTanHalfHorizFOV * fNormalizedXPos;
 				float fBeta = fTanHalfVertFOV * fNormalizedYPos;
+
+				iCurrentPixel = 4 * (iColumn + iRow * iWidth);
 						
 				glm::vec3 rayDirection = glm::normalize(fAlpha * u + fBeta * v - w);
 
@@ -303,18 +346,20 @@ int main(int argc, char **argv)
 							}
 						}
 					}
+					Color& color = FindColor(intersect, lightSources);
 
 					if (bInShadow == false)
 					{
-						iCurrentPixel = 4 * (iColumn + iRow * iWidth);
-						Color& color = FindColor(intersect);
 						SetPixelColor(iCurrentPixel, 255 * color.X, 255 * color.Y, 255 * color.Z, 255 * color.W);
 					}
 					else
 					{
-						iCurrentPixel = 4 * (iColumn + iRow * iWidth);
 						SetPixelColor(iCurrentPixel, 0, 0, 0, 255);
 					}
+				}
+				else
+				{
+					SetPixelColor(iCurrentPixel, 0, 0, 0, 255);
 				}
 			}
 		}
