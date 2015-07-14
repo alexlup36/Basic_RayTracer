@@ -19,12 +19,21 @@ typedef glm::vec3 Point;
 typedef glm::vec4 vec4;
 
 #define rad(x) (x * glm::pi<float>()) / 180.0f
-#define AmbientColor Color(0.3f, 0.2f, 0.25f, 1.0f)
 #define Random() ((float) rand() / (RAND_MAX)) + 1
 
 unsigned gObjectIndex = 0;
 
 float fEPS = 0.01f;
+
+inline double fastPow(double a, double b) {
+	union {
+		double d;
+		int x[2];
+	} u = { a };
+	u.x[1] = (int)(b * (u.x[1] - 1072632447) + 1072632447);
+	u.x[0] = 0;
+	return u.d;
+}
 
 inline void PrintVector(const glm::vec3& v)
 {
@@ -80,12 +89,23 @@ struct Color
 		return Color(x, y, z, w);
 	}
 
+	Color operator+=(const Color& other)
+	{
+		this->X = glm::clamp(this->X + other.X, 0.0f, 1.0f);
+		this->Y = glm::clamp(this->Y + other.Y, 0.0f, 1.0f);
+		this->Z = glm::clamp(this->Z + other.Z, 0.0f, 1.0f);
+		this->W = glm::clamp(this->W + other.W, 0.0f, 1.0f);
+
+		return *this;
+	}
+
 	float X, Y, Z, W;
 };
 
 // Material
 struct Material
 {
+	Color Ambient;
 	Color Emission;
 	Color Diffuse;
 	Color Specular;
@@ -93,17 +113,20 @@ struct Material
 
 	Material()
 	{
+		Ambient = Color(0.3f, 0.3f, 0.3f, 1.0f);
 		Emission = Color(0.4f, 0.2f, 0.5f, 1.0f);
 		Diffuse = Color(0.2f, 0.7f, 0.8f, 1.0f);
 		Specular = Color(1.0f, 1.0f, 1.0f, 1.0f);
 		Shininess = 128.0f;
 	}
 
-	Material(const Color& vEmission,
+	Material(const Color& vAmbient,
+		const Color& vEmission,
 		const Color& vDiffuse,
 		const Color& vSpecular,
 		const float fShineness)
 	{
+		Ambient = vAmbient;
 		Emission = vEmission;
 		Diffuse = vDiffuse;
 		Specular = vSpecular;
@@ -114,6 +137,7 @@ struct Material
 	{
 		srand((unsigned)time(NULL));
 
+		Ambient = Color(Random(), Random(), Random(), 1.0f);
 		Emission = Color(Random(), Random(), Random(), 1.0f);
 		Diffuse = Color(Random(), Random(), Random(), 1.0f);
 		Specular = Color(Random(), Random(), Random(), 1.0f);
@@ -128,6 +152,7 @@ struct DirectionalLight
 {
 	vec3 Direction;
 
+	Color AmbientLight;
 	Color DiffuseLight;
 	Color SpecularLight;
 
@@ -137,9 +162,11 @@ struct DirectionalLight
 
 		DiffuseLight = Color(0.7f, 0.8f, 0.9f, 1.0f); 
 		SpecularLight = Color(1.0f, 1.0f, 1.0f, 1.0f);
+		AmbientLight = Color(0.1f, 0.1f, 0.1f, 1.0f);
 	}
 
 	DirectionalLight(const vec3& vDir,
+		const Color& vAmbientLight,
 		const Color& vDiffuseLight,
 		const Color& vSpecularLight)
 	{
@@ -147,6 +174,57 @@ struct DirectionalLight
 
 		DiffuseLight = vDiffuseLight;
 		SpecularLight = vSpecularLight;
+		AmbientLight = vAmbientLight;
+	}
+};
+
+// -----------------------------------------------------------------------
+
+// Point light
+struct PointLight
+{
+	vec3 Position;
+
+	Color AmbientLight;
+	Color DiffuseLight;
+	Color SpecularLight;
+
+	float ConstantAttenuation;
+	float LinearAttenuation;
+	float QuadraticAttenuation;
+
+	float Radius;
+
+	PointLight()
+	{
+		Position = vec3(0.0f, 0.0f, 0.0f);
+
+		DiffuseLight = Color(0.7f, 0.8f, 0.9f, 1.0f);
+		SpecularLight = Color(1.0f, 1.0f, 1.0f, 1.0f);
+		AmbientLight = Color(0.1f, 0.1f, 0.1f, 1.0f);
+
+		Radius = 50.0f;
+
+		ConstantAttenuation = 1.0f;
+		LinearAttenuation = 2.0f / Radius;
+		QuadraticAttenuation = 1.0f / (Radius * Radius);
+	}
+
+	PointLight(const vec3& vPosition,
+		const Color& vAmbientLight,
+		const Color& vDiffuseLight,
+		const Color& vSpecularLight,
+		const glm::vec3 vAttenuation)
+	{
+		Position = vPosition;
+
+		DiffuseLight = vDiffuseLight;
+		SpecularLight = vSpecularLight;
+		AmbientLight = vAmbientLight;
+
+		ConstantAttenuation = vAttenuation.x;
+		LinearAttenuation = vAttenuation.y;
+		QuadraticAttenuation = vAttenuation.z;
 	}
 };
 

@@ -24,19 +24,31 @@
 
 // ------------------------------------------------------------------------
 // Window
-const unsigned int iWidth = 1024;
-const unsigned int iHeight = 768;
+const unsigned int iWidth = 800;
+const unsigned int iHeight = 600;
 const unsigned int iImageSize = iWidth * iHeight;
 const unsigned int iColor = 24;
+const float moveSpeed = 5.0f;
 
 sf::RenderWindow window(sf::VideoMode(iWidth, iHeight, iColor), "RayTracer"/*, sf::Style::Fullscreen*/);
+sf::Vector2i windowPosition = window.getPosition();
+sf::Vector2i screenCenter(static_cast<int>(windowPosition.x + iWidth * 0.5f), 
+	static_cast<int>(windowPosition.y + iHeight * 0.5f));
 
 // -----------------------------------------------------------------------------
 
-std::vector<DirectionalLight*> lightSources;
-DirectionalLight light;
-Camera* pCam;
+std::vector<DirectionalLight*> dirLightSources;
+std::vector<PointLight*> pointLightSources;
+DirectionalLight dirLight;
+PointLight pointLight;
+std::shared_ptr<Camera> pCam;
 sf::Uint8* pixels = new sf::Uint8[iWidth * iHeight * 4];
+
+// -----------------------------------------------------------------------------
+
+void Draw(Scene& scene);
+void Update(float dt);
+void UpdateInput(glm::vec3& moveVector);
 
 // -----------------------------------------------------------------------------
 
@@ -50,70 +62,125 @@ void SetPixelColor(int iCurrentPixel, sf::Uint8 r, sf::Uint8 g, sf::Uint8 b, sf:
 
 // -----------------------------------------------------------------------------
 
-Color FindColor(const IntersectionInfo& intersect, std::vector<DirectionalLight*> lightSources)
+Color PhongLighting(DirectionalLight& currentLight, 
+	Material& material,
+	const glm::vec3& position,
+	const glm::vec3& normal)
 {
+	Color ambientComponent, diffuseComponent, specularComponent;
 
-	//Color finalColor;
-	//Object* pHitObject = intersect.HitObject;
-	//Material& hitObjectMaterial = pHitObject->GetMaterial();
+	// Ambient component
+	ambientComponent = currentLight.AmbientLight * material.Ambient;
 
-	//// Compute the diffuse term
-	//float fNormalDotLight = glm::dot(intersect.NormalAtIntersection, light.Direction);
+	// Diffuse component
+	glm::vec3 lightDirection = glm::normalize(currentLight.Direction);
+	float fNormalDotLight = glm::max(glm::dot(normal, lightDirection), 0.0f);
+	diffuseComponent = material.Diffuse * currentLight.DiffuseLight * fNormalDotLight;
 
-	//Color& vDiffuse = hitObjectMaterial.Diffuse * light.DiffuseLight * glm::max<float>(fNormalDotLight, 0.0f);
+	// Specular component
+	vec3& viewDirection = glm::normalize(pCam->GetCameraPosition() - position);
+	vec3& reflectionDirection = glm::reflect<vec3>(-lightDirection, normal);
+	float specular = std::pow(std::max(glm::dot(viewDirection, reflectionDirection), 0.0f), material.Shininess);
+	specularComponent = material.Specular * currentLight.SpecularLight * specular;
 
-	//// Compute the specular term
-	//vec3& vViewVector = glm::normalize(pCam->GetCameraPosition() - intersect.IntersectionPoint);
-	//	
-	//// Phong Shading 
-	//vec3& vReflectedLight = glm::normalize(glm::reflect<vec3>(-light.Direction, intersect.NormalAtIntersection));
-	//float fReflectedDotView = glm::dot(vReflectedLight, vViewVector);
-	//Color vSpecular = hitObjectMaterial.Specular *
-	//					light.SpecularLight *
-	//					glm::pow(glm::max<float>(fReflectedDotView, 0.0f), hitObjectMaterial.Shininess);
+	// Return the final color
+	return ambientComponent + diffuseComponent + specularComponent;
+}
 
-	//// Blinn-Phong shading
-	///*vec3 vHalfwayVector = glm::normalize(vViewVector + light.Direction);
-	//float fNormalDotHalf = glm::dot(intersect.NormalAtIntersection, vHalfwayVector);
-	//Color vSpecular = pHitObject->GetMaterial().Specular *
-	//					light.SpecularLight *
-	//					glm::pow(glm::max<float>(fNormalDotHalf, 0.0f), intersect.HitObject->GetMaterial().Shininess);*/
+// -----------------------------------------------------------------------------
 
-	//finalColor = AmbientColor + vDiffuse + vSpecular;
-	//
-	//return finalColor;
+Color PhongLightingPoint(PointLight& currentLight,
+	Material& material,
+	const glm::vec3& position,
+	const glm::vec3& normal)
+{
+	Color ambientComponent, diffuseComponent, specularComponent;
 
-	Color finalColor, diffuseColor, specularColor;
-	Object* pHitObject = intersect.HitObject;
-	Material& hitObjectMaterial = pHitObject->GetMaterial();
+	// Ambient component
+	ambientComponent = currentLight.AmbientLight * material.Ambient;
 
-	// Go through all the lights in the scene
-	for (unsigned int lightIndex = 0; lightIndex < lightSources.size(); lightIndex++)
+	// Diffuse component
+
+	// Calculate the light vector
+	glm::vec3 lightVector = currentLight.Position - position;
+	// Calculate the distance from the point light to the pixel position
+	float distance = glm::length(lightVector);
+	// Calculate the attenuation factor
+	float attenuation = 1.0f / (currentLight.ConstantAttenuation +
+		currentLight.LinearAttenuation * distance +
+		currentLight.QuadraticAttenuation * (distance * distance));
+	glm::vec3 lightDirection = glm::normalize(lightVector);
+	float fNormalDotLight = glm::max(glm::dot(normal, lightDirection), 0.0f);
+	diffuseComponent = material.Diffuse * currentLight.DiffuseLight * fNormalDotLight;
+
+	// Specular component
+	vec3& viewDirection = glm::normalize(pCam->GetCameraPosition() - position);
+	vec3& reflectionDirection = glm::reflect<vec3>(-lightDirection, normal);
+	float specular = std::pow(std::max(glm::dot(viewDirection, reflectionDirection), 0.0f), material.Shininess);
+	specularComponent = material.Specular * currentLight.SpecularLight * specular;
+
+	// Return the final color
+	return (ambientComponent + diffuseComponent + specularComponent);// *attenuation;
+}
+
+// -----------------------------------------------------------------------------
+
+Color BlinnPhongLighting(DirectionalLight& currentLight,
+	Material& material,
+	const glm::vec3& position,
+	const glm::vec3& normal)
+{
+	Color ambientComponent, diffuseComponent, specularComponent;
+
+	// Ambient component
+	ambientComponent = currentLight.AmbientLight * material.Ambient;
+
+	// Diffuse component
+	glm::vec3 lightDirection = glm::normalize(currentLight.Direction);
+	float fNormalDotLight = glm::max(glm::dot(normal, lightDirection), 0.0f);
+	diffuseComponent = material.Diffuse * currentLight.DiffuseLight * fNormalDotLight;
+
+	// Specular component
+	vec3& viewDirection = glm::normalize(pCam->GetCameraPosition() - position);
+	vec3& halfVector = glm::normalize(lightDirection + viewDirection);
+	float specular = std::pow(std::max(glm::dot(normal, halfVector), 0.0f), material.Shininess);
+	specularComponent = material.Specular * currentLight.SpecularLight * specular;
+
+	// Return the final color
+	return ambientComponent + diffuseComponent + specularComponent;
+}
+
+// -----------------------------------------------------------------------------
+
+Color FindColor(const IntersectionInfo& intersect, std::vector<DirectionalLight*> dirLightSources)
+{
+	Color finalColor;
+	Material& hitObjectMaterial = intersect.HitObject->GetMaterial();
+
+	// Go through all the directional lights in the scene
+	//for (unsigned int lightIndex = 0; lightIndex < dirLightSources.size(); lightIndex++)
+	//{
+	//	// Get the current light source
+	//	DirectionalLight& currentLight = *dirLightSources[lightIndex];
+
+	//	// Compute the final color
+	//	finalColor += PhongLighting(currentLight,
+	//		hitObjectMaterial, 
+	//		intersect.IntersectionPoint, 
+	//		intersect.NormalAtIntersection);
+	//}
+
+	// Go through all the point lights in the scene
+	for (unsigned int lightIndex = 0; lightIndex < pointLightSources.size(); lightIndex++)
 	{
 		// Get the current light source
-		DirectionalLight& currentLight = *lightSources[lightIndex];
+		PointLight& currentLight = *pointLightSources[lightIndex];
 
-		// Compute the diffuse term
-		float fNormalDotLight = glm::dot(intersect.NormalAtIntersection, currentLight.Direction);
-		if (fNormalDotLight > 0.0f)
-		{
-			// Test for shadow
-			bool bInShadow = false;
-
-			diffuseColor = hitObjectMaterial.Diffuse * currentLight.DiffuseLight * fNormalDotLight;
-
-			// Compute the specular term using Phong Shading
-			vec3& vViewVector = glm::normalize(pCam->GetCameraPosition() - intersect.IntersectionPoint);
-			vec3& vReflectedLight = glm::normalize(glm::reflect<vec3>(-light.Direction, intersect.NormalAtIntersection));
-			float fReflectedDotView = glm::dot(vReflectedLight, vViewVector);
-			specularColor = hitObjectMaterial.Specular *
-				light.SpecularLight *
-				glm::pow(glm::max<float>(fReflectedDotView, 0.0f), hitObjectMaterial.Shininess);
-
-		}
-		
 		// Compute the final color
-		finalColor = AmbientColor + diffuseColor + specularColor;
+		finalColor += PhongLightingPoint(currentLight,
+			hitObjectMaterial,
+			intersect.IntersectionPoint,
+			intersect.NormalAtIntersection);
 	}
 
 	return finalColor;
@@ -157,17 +224,148 @@ IntersectionInfo RaySceneIntersection(const Ray& ray, Scene& scene)
 							hitObject);
 }
 
+// ------------------------------------------------------------------------
+
+void Draw(Scene& scene)
+{
+	// ------------------------------------------------------------------------
+	// Pre-compute camera values
+	float fTanHalfHorizFOV = glm::tan(rad(pCam->GetHorizontalFOV() / 2.0f));
+	float fTanHalfVertFOV = glm::tan(rad(pCam->GetVerticalFOV() / 2.0f));
+
+	float fHalfWidth = iWidth * 0.5f;
+	float fHalfHeight = iHeight * 0.5f;
+
+	// ------------------------------------------------------------------------
+	// Build a coordinate frame
+	vec3 vEyeTarget = pCam->GetCameraPosition() - pCam->GetCameraTarget();
+
+	vec3 w = glm::normalize(vEyeTarget);
+	vec3 u = glm::normalize(glm::cross(pCam->GetCameraUp(), w));
+	vec3 v = glm::normalize(glm::cross(w, u));
+
+	// ------------------------------------------------------------------------
+
+	int iCurrentPixel;
+
+	// Update pixels
+	for (int iRow = 0; iRow < iHeight; iRow++)
+	{
+		for (int iColumn = 0; iColumn < iWidth; iColumn++)
+		{
+			float fNormalizedXPos = ((iColumn - fHalfWidth) / fHalfWidth);
+			float fNormalizedYPos = ((fHalfHeight - iRow) / fHalfHeight);
+
+			float fAlpha = fTanHalfHorizFOV * fNormalizedXPos;
+			float fBeta = fTanHalfVertFOV * fNormalizedYPos;
+
+			iCurrentPixel = 4 * (iColumn + iRow * iWidth);
+
+			glm::vec3 rayDirection = glm::normalize(fAlpha * u + fBeta * v - w);
+
+			Ray camIJRay(pCam->GetCameraPosition(), rayDirection);
+
+			IntersectionInfo intersect = RaySceneIntersection(
+				camIJRay,
+				scene);
+
+			if (intersect.HitObject != NULL)
+			{
+				// Calculate the shadow ray
+				Ray shadowRay(intersect.IntersectionPoint, dirLight.Direction);
+
+				// Get the object list in the scene
+				std::vector<Object*>& objectList = scene.ObjectList();
+
+				bool bInShadow = false;
+
+				for (Object* obj : objectList)
+				{
+					if (obj != NULL && obj->GetIndex() != intersect.HitObject->GetIndex())
+					{
+						IntersectionInfo intersection = obj->FindIntersection(shadowRay);
+						if (intersection.HitObject != NULL)
+						{
+							bInShadow = true;
+						}
+					}
+				}
+				Color& color = FindColor(intersect, dirLightSources);
+
+				if (bInShadow == false)
+				{
+					SetPixelColor(iCurrentPixel,
+						sf::Uint8(255 * color.X),
+						sf::Uint8(255 * color.Y),
+						sf::Uint8(255 * color.Z),
+						sf::Uint8(255 * color.W));
+				}
+				else
+				{
+					SetPixelColor(iCurrentPixel, 0, 0, 0, 255);
+				}
+			}
+			else
+			{
+				SetPixelColor(iCurrentPixel, 0, 0, 0, 255);
+			}
+		}
+	}
+}
+
+// ------------------------------------------------------------------------
+
+void Update(float dt)
+{
+	// ------------------------------------------------------------------------
+
+	// Update input
+	glm::vec3 moveVector = glm::vec3(0.0f);
+	UpdateInput(moveVector);
+
+	// ------------------------------------------------------------------------
+
+	// Update camera position
+	pCam->AddToCameraPosition(moveVector * dt);
+
+	// ------------------------------------------------------------------------
+}
+
+// ------------------------------------------------------------------------
+
+void UpdateInput(glm::vec3& moveVector)
+{
+	// ------------------------------------------------------------------------
+
+	if (sf::Keyboard::isKeyPressed(sf::Keyboard::A))
+	{
+		moveVector += glm::vec3(1.0f, 0.0f, 0.0f) * moveSpeed;
+	}
+	if (sf::Keyboard::isKeyPressed(sf::Keyboard::D))
+	{
+		moveVector += glm::vec3(-1.0f, 0.0f, 0.0f) * moveSpeed;
+	}
+	if (sf::Keyboard::isKeyPressed(sf::Keyboard::W))
+	{
+		moveVector += glm::vec3(0.0f, 0.0f, 1.0f) * moveSpeed;
+	}
+	if (sf::Keyboard::isKeyPressed(sf::Keyboard::S))
+	{
+		moveVector += glm::vec3(0.0f, 0.0f, -1.0f) * moveSpeed;
+	}
+
+	// ------------------------------------------------------------------------
+}
+
 // -----------------------------------------------------------------------------
 
-int main(int argc, char **argv) 
-{	
+int main(int argc, char **argv)
+{
 	// ------------------------------------------------------------------------
 
 	sf::Vector2i currentMousePosition;
 	sf::Vector2i originalMousePosition;
-
-	sf::Vector2i windowPosition = window.getPosition();
-	sf::Mouse::setPosition(sf::Vector2i(windowPosition.x + iWidth * 0.5f, windowPosition.y + iHeight * 0.5));
+	sf::Mouse::setPosition(screenCenter);
 	originalMousePosition = sf::Mouse::getPosition(window);
 
 	// ------------------------------------------------------------------------
@@ -183,40 +381,32 @@ int main(int argc, char **argv)
 	float fCurrentTime = 0;
 
 	// ------------------------------------------------------------------------
-	// Scene
-	Scene scene;
-
-	// ------------------------------------------------------------------------
 	// Camera
-	pCam = new Camera(glm::vec3(0.0f, 0.0f, 3.0f),
+	pCam = std::make_shared<Camera>(glm::vec3(0.0f, 0.0f, 3.0f),
 		60.0f,
 		60.0f);
 
 	// ------------------------------------------------------------------------
-	// Pre-compute camera values
-	float fTanHalfHorizFOV	= glm::tan(rad(pCam->GetHorizontalFOV() / 2.0f));
-	float fTanHalfVertFOV	= glm::tan(rad(pCam->GetVerticalFOV() / 2.0f));
-
-	float fHalfWidth	= iWidth * 0.5f;
-	float fHalfHeight	= iHeight * 0.5f;
-
-	// ------------------------------------------------------------------------
 
 	// Light
-	lightSources.push_back(&light);
-	// ------------------------------------------------------------------------
 
-	std::shared_ptr<Sphere> pSphere		= std::make_shared<Sphere>(vec3(1.0f, 1.0f, 5.0f), 0.2f);
-	std::shared_ptr<Sphere> pSphere2	= std::make_shared<Sphere>(vec3(0.0f, 1.0f, 2.0f), 0.3f);
-	std::shared_ptr<Sphere> pSphere3	= std::make_shared<Sphere>(vec3(2.0f, 1.5f, 8.0f), 0.4f);
-	std::shared_ptr<Plane> pPlane		= std::make_shared<Plane>(Normal(0.0f, 1.0f, 0.0f), Point(0.0f, -3.0f, 0.0f));
+	dirLightSources.push_back(&dirLight);
+	pointLightSources.push_back(&pointLight);
+
+	// ------------------------------------------------------------------------
+	// Scene
+
+	Scene scene;
+
+	std::shared_ptr<Sphere> pSphere = std::make_shared<Sphere>(vec3(1.0f, 1.0f, 5.0f), 0.2f);
+	std::shared_ptr<Sphere> pSphere2 = std::make_shared<Sphere>(vec3(0.0f, 1.0f, 2.0f), 0.3f);
+	std::shared_ptr<Sphere> pSphere3 = std::make_shared<Sphere>(vec3(2.0f, 1.5f, 8.0f), 0.4f);
+	std::shared_ptr<Plane> pPlane = std::make_shared<Plane>(Normal(0.0f, 1.0f, 0.0f), Point(0.0f, -3.0f, 0.0f));
 
 	scene.AddObject(pSphere.get());
 	scene.AddObject(pSphere2.get());
 	scene.AddObject(pSphere3.get());
 	scene.AddObject(pPlane.get());
-
-	int iCurrentPixel;
 
 	// ------------------------------------------------------------------------
 
@@ -240,16 +430,15 @@ int main(int argc, char **argv)
 
 				if (currentMousePosition != originalMousePosition)
 				{
-					float fXDiff = currentMousePosition.x - originalMousePosition.x;
-					float fYDiff = currentMousePosition.y - originalMousePosition.y;
+					float fXDiff = static_cast<float>(currentMousePosition.x - originalMousePosition.x);
+					float fYDiff = static_cast<float>(currentMousePosition.y - originalMousePosition.y);
 
 					pCam->AddYRotation(fCurrentTime, fXDiff);
 					pCam->AddXRotation(fCurrentTime, -fYDiff);
 
 					pCam->UpdateViewMatrix();
 
-					sf::Vector2i windowPosition = window.getPosition();
-					sf::Mouse::setPosition(sf::Vector2i(windowPosition.x + iWidth * 0.5f, windowPosition.y + iHeight * 0.5));
+					sf::Mouse::setPosition(screenCenter);
 				}
 			}
 
@@ -257,117 +446,18 @@ int main(int argc, char **argv)
 			{
 				switch (event.key.code)
 				{
-					case sf::Keyboard::Escape:
-					{
-						window.close();
+				case sf::Keyboard::Escape:
+				{
+					window.close();
 
-						break;
-					}
+					break;
+				}
 				}
 			}
 		}
 
-		// ------------------------------------------------------------------------
-		// Update input
-		glm::vec3 moveVector = glm::vec3(0.0f);
-
-		if (sf::Keyboard::isKeyPressed(sf::Keyboard::A))
-		{
-			moveVector += glm::vec3(1.0f, 0.0f, 0.0f);
-		}
-		if (sf::Keyboard::isKeyPressed(sf::Keyboard::D))
-		{
-			moveVector += glm::vec3(-1.0f, 0.0f, 0.0f);
-		}
-		if (sf::Keyboard::isKeyPressed(sf::Keyboard::W))
-		{
-			moveVector += glm::vec3(0.0f, 0.0f, 1.0f);
-		}
-		if (sf::Keyboard::isKeyPressed(sf::Keyboard::S))
-		{
-			moveVector += glm::vec3(0.0f, 0.0f, -1.0f);
-		}
-
-		pCam->AddToCameraPosition(moveVector * fCurrentTime);
-
-		// ------------------------------------------------------------------------
-		// Build a coordinate frame
-		vec3 vEyeTarget = pCam->GetCameraPosition() - pCam->GetCameraTarget();
-
-		vec3 w = glm::normalize(vEyeTarget);
-		vec3 u = glm::normalize(glm::cross(pCam->GetCameraUp(), w));
-		vec3 v = glm::normalize(glm::cross(w, u));
-
-		// ------------------------------------------------------------------------
-
-		//window.clear(sf::Color::White);
-
-		// ------------------------------------------------------------------------
-
-		// Update pixels
-		for (int iRow = 0; iRow < iHeight; iRow++)
-		{
-			for (int iColumn = 0; iColumn < iWidth; iColumn++)
-			{
-				float fNormalizedXPos = ((iColumn - fHalfWidth) / fHalfWidth);
-				float fNormalizedYPos = ((fHalfHeight - iRow) / fHalfHeight);
-
-				float fAlpha = fTanHalfHorizFOV * fNormalizedXPos;
-				float fBeta = fTanHalfVertFOV * fNormalizedYPos;
-
-				iCurrentPixel = 4 * (iColumn + iRow * iWidth);
-						
-				glm::vec3 rayDirection = glm::normalize(fAlpha * u + fBeta * v - w);
-
-				Ray camIJRay(pCam->GetCameraPosition(), rayDirection);
-					
-				IntersectionInfo intersect = RaySceneIntersection(
-					camIJRay,
-					scene);
-							
-				if (intersect.HitObject != NULL)
-				{
-					// Calculate the shadow ray
-					Ray shadowRay(intersect.IntersectionPoint, light.Direction);
-
-					// Get the object list in the scene
-					std::vector<Object*>& objectList = scene.ObjectList();
-
-					bool bInShadow = false;
-
-					for (Object* obj : objectList)
-					{
-						if (obj != NULL && obj->GetIndex() != intersect.HitObject->GetIndex())
-						{
-							IntersectionInfo intersection = obj->FindIntersection(shadowRay);
-							if (intersection.HitObject != NULL)
-							{
-								bInShadow = true;
-							}
-						}
-					}
-					Color& color = FindColor(intersect, lightSources);
-
-					if (bInShadow == false)
-					{
-						SetPixelColor(iCurrentPixel, 255 * color.X, 255 * color.Y, 255 * color.Z, 255 * color.W);
-					}
-					else
-					{
-						SetPixelColor(iCurrentPixel, 0, 0, 0, 255);
-					}
-				}
-				else
-				{
-					SetPixelColor(iCurrentPixel, 0, 0, 0, 255);
-				}
-			}
-		}
-
-		// Update light
-		light.Direction.x += 0.001f;
-		light.Direction.y += 0.0001f;
-		light.Direction.z += 0.01f;
+		Update(fCurrentTime);
+		Draw(scene);
 
 		window.setTitle(std::to_string(fFPS));
 
@@ -391,3 +481,5 @@ int main(int argc, char **argv)
 
 	return 0;
 }
+
+// ------------------------------------------------------------------------
