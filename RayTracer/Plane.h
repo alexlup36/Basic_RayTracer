@@ -4,18 +4,26 @@
 #include "Common.h"
 #include "Object.h"
 #include "Ray.h"
+#include "Constants.h"
 
 class Plane : public Object
 {
 public:
 	Plane(const Normal& normal = Normal(0.0f, 1.0f, 0.0f),
 		const Point& point = Point(0.0f, 0.0f, 0.0f))
-		: m_vNormal(glm::normalize(normal)), m_vPointOnPlane(point) {}
+		: m_vNormal(glm::normalize(normal)), m_vPointOnPlane(point) 
+	{
+		m_Type = ObjectType::kePLANE;
+	}
 
 	Plane(const Material& mat,
 		const Normal& normal,
-		const Point& point)
-		: m_vNormal(glm::normalize(normal)), m_vPointOnPlane(point), Object(mat) {}
+		const Point& point,
+		const std::string& name)
+		: m_vNormal(glm::normalize(normal)), m_vPointOnPlane(point), Object(mat, name) 
+	{
+		m_Type = ObjectType::keSPHERE;
+	}
 
 	// Getter functions
 	inline Normal GetNormal() { return m_vNormal; }
@@ -38,7 +46,7 @@ public:
 			float fRayDirDotNormal = glm::dot(ray.GetDirection(), m_vNormal);
 			float t = -(fRayOrigDotNormal + d) / fRayDirDotNormal;
 
-			if (t > fEPS)
+			if (t > Constants::EPS)
 			{
 				vec3 IntersectionPoint = ray.GetOrigin() + t * ray.GetDirection();
 

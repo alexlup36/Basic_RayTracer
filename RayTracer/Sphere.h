@@ -12,16 +12,19 @@ public:
 		: m_vCenter(pos),  m_fRadius(radius) 
 	{
 		m_fSqRadius = m_fRadius * m_fRadius;
+
+		m_Type = ObjectType::keSPHERE;
 	}
 
 	Sphere(const Material& mat,
 		const vec3& pos,
-		float radius)
-		: m_vCenter(pos), m_fRadius(radius)
+		float radius,
+		const std::string& name)
+		: m_vCenter(pos), m_fRadius(radius), Object(mat, name)
 	{
-		m_Material = mat;
-
 		m_fSqRadius = m_fRadius * m_fRadius;
+
+		m_Type = ObjectType::keSPHERE;
 	}
 
 	// Getter functions

@@ -40,7 +40,7 @@ public:
 		cameraRotation = glm::rotate(cameraRotation, m_fPitchRotation, glm::vec3(1.0f, 0.0f, 0.0f));
 
 		glm::vec3 transformedOffset = glm::vec3(cameraRotation * glm::vec4(offset, 1.0f));
-		m_vCameraPosition += 0.1f * transformedOffset;
+		m_vCameraPosition += transformedOffset;
 
 		UpdateViewMatrix();
 	}
