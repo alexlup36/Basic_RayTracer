@@ -291,7 +291,61 @@ sf::Color BlinnPhongLighting(PointLight& currentLight,
 
 void CalculateSquareCoord(int intersectionX, int intersectionZ, int& coordX, int& coordZ)
 {
+	int xDivSq = intersectionX / SquareLength;
+	int xModSq = intersectionX % SquareLength;
 
+	int zDivSq = intersectionZ / SquareLength;
+	int zModSq = intersectionZ % SquareLength;
+
+	float extraX = (float)xModSq / SquareLength;
+	float extraZ = (float)zModSq / SquareLength;
+
+	coordX = xDivSq;
+	coordZ = zDivSq;
+
+	if (intersectionX < 0.0f)
+	{
+		// Left half
+
+		if (intersectionZ > 0.0f)
+		{
+			// Top left quadrant
+			if (extraX < 0.0f)
+			{
+				coordX--;
+			}
+		}
+		else
+		{
+			// Bottom left quadrant
+			if (extraX < 0.0f)
+			{
+				coordX--;
+			}
+			if (extraZ < 0.0f)
+			{
+				coordZ--;
+			}
+		}
+	}
+	else
+	{
+		// Right half
+
+		if (intersectionZ > 0.0f)
+		{
+			// Top right quadrant
+
+		}
+		else
+		{
+			// Bottom right quadrant
+			if (extraZ < 0.0f)
+			{
+				coordZ--;
+			}
+		}
+	}
 }
 
 // -----------------------------------------------------------------------------
@@ -303,6 +357,9 @@ void Trace(const Ray& ray, sf::Color& colorAccumulator, Scene& scene, unsigned i
 
 	if (intersect.HitObject != NULL)
 	{
+		// --------------------------------------------------------------------
+		// Light source rendering
+
 		// Check if we hit a light source
 		/*if (intersect.HitObject->Type() == ObjectType::keDIRECTIONALLIGHT ||
 			intersect.HitObject->Type() == ObjectType::kePOINTLIGHT)
@@ -311,8 +368,36 @@ void Trace(const Ray& ray, sf::Color& colorAccumulator, Scene& scene, unsigned i
 			return;
 		}*/
 
+		// --------------------------------------------------------------------
 		// Get the material of the hit object
+
 		Material& hitObjectMaterial = intersect.HitObject->GetMaterial();
+
+		// --------------------------------------------------------------------
+		// Procedural plane texturing
+
+		// Object type plane hit => square pattern texturing
+		if (intersect.HitObject->Type() == ObjectType::kePLANE)
+		{
+			// Get the intersection point between the ray and the plane
+			int intersectionX = (int)floor(intersect.IntersectionPoint.x);
+			int intersectionZ = (int)floor(intersect.IntersectionPoint.z);
+
+			int xSquareCoordinate = 0;
+			int ySquareCoordinate = 0;
+
+			// Calculate the coordinates of the square where the intersection occured
+			CalculateSquareCoord(intersectionX, intersectionZ, xSquareCoordinate, ySquareCoordinate);
+
+			if ((abs(xSquareCoordinate) + abs(ySquareCoordinate)) % 2 == 0)
+			{
+				hitObjectMaterial.Diffuse = sf::Color(0, 0, 0, 255);
+			}
+			else
+			{
+				hitObjectMaterial.Diffuse = sf::Color(255, 255, 255, 255);
+			}
+		}
 
 		// --------------------------------------------------------------------
 		// Shadows

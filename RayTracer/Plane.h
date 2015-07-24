@@ -22,7 +22,7 @@ public:
 		const std::string& name)
 		: m_vNormal(glm::normalize(normal)), m_vPointOnPlane(point), Object(mat, name) 
 	{
-		m_Type = ObjectType::keSPHERE;
+		m_Type = ObjectType::kePLANE;
 	}
 
 	// Getter functions
