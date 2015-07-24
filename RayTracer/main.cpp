@@ -36,6 +36,7 @@ float moveSpeed = 1.0f;
 unsigned int MAX_REFLECTION_DEPTH = 1;
 bool bGUIMode;
 unsigned int SliderPositionAmplitude = 30;
+int SquareLength = 10;
 
 enum Button
 {
@@ -74,7 +75,8 @@ void SetupWidgets(tgui::Gui& gui);
 void updateButtonCallback(const tgui::Callback& callback);
 void comboBoxSelectionCallback(const tgui::Callback& callback);
 IntersectionInfo RaySceneIntersection(const Ray& ray, Scene& scene);
-sf::Color FindColor(const IntersectionInfo& intersect, Scene& scene, float fShade);
+sf::Color FindColor(const IntersectionInfo& intersect, const Material& hitObjectMaterial, Scene& scene, float fShade);
+void CalculateSquareCoord(int intersectionX, int intersectionZ, int& coordX, int& coordZ);
 
 // -----------------------------------------------------------------------------
 
@@ -104,7 +106,7 @@ void SetPixelColor(int iCurrentPixel, const sf::Color color)
 // -----------------------------------------------------------------------------
 
 sf::Color PhongLighting(DirectionalLight& currentLight, 
-	Material& material,
+	const Material& material,
 	const glm::vec3& position,
 	const glm::vec3& normal,
 	float fShade)
@@ -146,7 +148,7 @@ sf::Color PhongLighting(DirectionalLight& currentLight,
 // -----------------------------------------------------------------------------
 
 sf::Color PhongLighting(PointLight& currentLight,
-	Material& material,
+	const Material& material,
 	const glm::vec3& position,
 	const glm::vec3& normal,
 	float fShade)
@@ -197,7 +199,7 @@ sf::Color PhongLighting(PointLight& currentLight,
 // -----------------------------------------------------------------------------
 
 sf::Color BlinnPhongLighting(DirectionalLight& currentLight,
-	Material& material,
+	const Material& material,
 	const glm::vec3& position,
 	const glm::vec3& normal,
 	float fShade)
@@ -239,7 +241,7 @@ sf::Color BlinnPhongLighting(DirectionalLight& currentLight,
 // -----------------------------------------------------------------------------
 
 sf::Color BlinnPhongLighting(PointLight& currentLight,
-	Material& material,
+	const Material& material,
 	const glm::vec3& position,
 	const glm::vec3& normal,
 	float fShade)
@@ -287,6 +289,13 @@ sf::Color BlinnPhongLighting(PointLight& currentLight,
 
 // -----------------------------------------------------------------------------
 
+void CalculateSquareCoord(int intersectionX, int intersectionZ, int& coordX, int& coordZ)
+{
+
+}
+
+// -----------------------------------------------------------------------------
+
 void Trace(const Ray& ray, sf::Color& colorAccumulator, Scene& scene, unsigned int iReflectionDepth)
 {
 	// Calculate intersection
@@ -295,12 +304,12 @@ void Trace(const Ray& ray, sf::Color& colorAccumulator, Scene& scene, unsigned i
 	if (intersect.HitObject != NULL)
 	{
 		// Check if we hit a light source
-		if (intersect.HitObject->Type() == ObjectType::keDIRECTIONALLIGHT ||
+		/*if (intersect.HitObject->Type() == ObjectType::keDIRECTIONALLIGHT ||
 			intersect.HitObject->Type() == ObjectType::kePOINTLIGHT)
 		{
 			colorAccumulator = sf::Color(255, 255, 255, 255);
 			return;
-		}
+		}*/
 
 		// Get the material of the hit object
 		Material& hitObjectMaterial = intersect.HitObject->GetMaterial();
@@ -321,8 +330,8 @@ void Trace(const Ray& ray, sf::Color& colorAccumulator, Scene& scene, unsigned i
 				DirectionalLight& currentLight = *dirLightSources[lightIndex];
 
 				// Calculate the intersection of the reflected ray
+				glm::vec3 startPoint = intersect.IntersectionPoint + intersect.NormalAtIntersection * 0.1f;
 				glm::vec3 lightDirection = glm::normalize(currentLight.Direction);
-				glm::vec3 startPoint = intersect.NormalAtIntersection * 0.1f;
 				Ray shadowRay(startPoint, lightDirection);
 
 				// Get the object list
@@ -349,8 +358,8 @@ void Trace(const Ray& ray, sf::Color& colorAccumulator, Scene& scene, unsigned i
 				PointLight& currentLight = *pointLightSources[lightIndex];
 
 				// Calculate the intersection of the reflected ray
-				glm::vec3 lightDirection = glm::normalize(currentLight.Position - intersect.IntersectionPoint);
-				glm::vec3 startPoint = intersect.NormalAtIntersection * 0.1f;
+				glm::vec3 startPoint = intersect.IntersectionPoint + intersect.NormalAtIntersection * 0.1f;
+				glm::vec3 lightDirection = glm::normalize(currentLight.Position - startPoint);
 				Ray shadowRay(startPoint, lightDirection);
 
 				// Get the object list
@@ -375,7 +384,7 @@ void Trace(const Ray& ray, sf::Color& colorAccumulator, Scene& scene, unsigned i
 		// Shading model
 
 		// Calculate the color of the object based on the shading model
-		sf::Color illuminationModel = FindColor(intersect, scene, fShade);
+		sf::Color illuminationModel = FindColor(intersect, hitObjectMaterial, scene, fShade);
 		colorAccumulator += illuminationModel;
 
 		// --------------------------------------------------------------------
@@ -411,11 +420,11 @@ void Trace(const Ray& ray, sf::Color& colorAccumulator, Scene& scene, unsigned i
 // -----------------------------------------------------------------------------
 
 sf::Color FindColor(const IntersectionInfo& intersect, 
+	const Material& hitObjectMaterial,
 	Scene& scene,
 	float fShade)
 {
 	sf::Color finalColor;
-	Material& hitObjectMaterial = intersect.HitObject->GetMaterial();
 
 	// Go through all directional light sources in the scene
 	for (unsigned int lightIndex = 0; lightIndex < dirLightSources.size(); lightIndex++)
@@ -515,7 +524,7 @@ void Draw(Scene& scene)
 	{
 		for (int iColumn = 0; iColumn < iWidth; iColumn++)
 		{
-			float fNormalizedXPos = ((iColumn - fHalfWidth) / fHalfWidth);
+			float fNormalizedXPos = ((fHalfWidth - iColumn) / fHalfWidth);
 			float fNormalizedYPos = ((fHalfHeight - iRow) / fHalfHeight);
 
 			float fAlpha = fTanHalfHorizFOV * fNormalizedXPos;
@@ -598,11 +607,11 @@ void UpdateInput(glm::vec3& moveVector)
 
 	if (sf::Keyboard::isKeyPressed(sf::Keyboard::A))
 	{
-		moveVector += glm::vec3(1.0f, 0.0f, 0.0f) * moveSpeed;
+		moveVector += glm::vec3(-1.0f, 0.0f, 0.0f) * moveSpeed;
 	}
 	if (sf::Keyboard::isKeyPressed(sf::Keyboard::D))
 	{
-		moveVector += glm::vec3(-1.0f, 0.0f, 0.0f) * moveSpeed;
+		moveVector += glm::vec3(1.0f, 0.0f, 0.0f) * moveSpeed;
 	}
 	if (sf::Keyboard::isKeyPressed(sf::Keyboard::W))
 	{
@@ -793,7 +802,7 @@ int main(int argc, char **argv)
 						float fXDiff = static_cast<float>(currentMousePosition.x - originalMousePosition.x);
 						float fYDiff = static_cast<float>(currentMousePosition.y - originalMousePosition.y);
 
-						pCam->AddYRotation(fCurrentTime, fXDiff);
+						pCam->AddYRotation(fCurrentTime, -fXDiff);
 						pCam->AddXRotation(fCurrentTime, -fYDiff);
 
 						pCam->UpdateViewMatrix();
