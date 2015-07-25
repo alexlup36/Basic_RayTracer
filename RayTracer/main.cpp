@@ -60,6 +60,7 @@ tgui::ComboBox::Ptr comboBox = nullptr;
 
 // -----------------------------------------------------------------------------
 
+Scene scene;
 std::vector<DirectionalLight*> dirLightSources;
 std::vector<PointLight*> pointLightSources;
 std::shared_ptr<Camera> pCam;
@@ -361,12 +362,12 @@ void Trace(const Ray& ray, sf::Color& colorAccumulator, Scene& scene, unsigned i
 		// Light source rendering
 
 		// Check if we hit a light source
-		/*if (intersect.HitObject->Type() == ObjectType::keDIRECTIONALLIGHT ||
+		if (intersect.HitObject->Type() == ObjectType::keDIRECTIONALLIGHT ||
 			intersect.HitObject->Type() == ObjectType::kePOINTLIGHT)
 		{
 			colorAccumulator = sf::Color(255, 255, 255, 255);
 			return;
-		}*/
+		}
 
 		// --------------------------------------------------------------------
 		// Get the material of the hit object
@@ -469,7 +470,7 @@ void Trace(const Ray& ray, sf::Color& colorAccumulator, Scene& scene, unsigned i
 		// Shading model
 
 		// Calculate the color of the object based on the shading model
-		sf::Color illuminationModel = FindColor(intersect, hitObjectMaterial, scene, fShade);
+		sf::Color illuminationModel = FindColor(intersect, hitObjectMaterial, scene, 1.0f);
 		colorAccumulator += illuminationModel;
 
 		// --------------------------------------------------------------------
@@ -667,17 +668,20 @@ void Update(float dt)
 			zPos = (int)(sliderZPtr->getValue() - SliderPositionAmplitude * 0.5f);
 		}
 
-		//std::cout << "XPos: " << xPos << "YPos: " << yPos << "ZPos: " << zPos << std::endl;
-
 		// Get a reference to the selected point light
 		int iItemIndex = comboBox->getSelectedItemIndex();
 		if (iItemIndex != -1)
 		{
 			// Update the position of the selected point light
 			PointLight* pSelectedPointLight = pointLightSources[iItemIndex];
+
 			if (pSelectedPointLight != NULL)
 			{
 				pSelectedPointLight->Position = glm::vec3(xPos, yPos, zPos);
+
+				std::cout << "XPos: " << xPos << "YPos: " << yPos << "ZPos: " << zPos << std::endl;
+				std::vector<Object*> objects = scene.ObjectList();
+				PointLight* pointlight = dynamic_cast<PointLight*>(objects[0]);
 			}
 		}
 	}
@@ -768,7 +772,7 @@ int main(int argc, char **argv)
 		5.0f, 
 		"DirectionalLight1");
 	PointLight pointLight1(glm::vec3(1.0f, 1.0f, 1.0f),
-		sf::Color(10, 10, 10, 255),
+		sf::Color(80, 80, 80, 255),
 		WhiteColor,
 		WhiteColor,
 		glm::vec3(0.0f, 2.0f, 1.0f),
@@ -801,10 +805,8 @@ int main(int argc, char **argv)
 	// ------------------------------------------------------------------------
 	// Scene
 
-	Scene scene;
-
 	//scene.AddObject(&dirLight);
-	//scene.AddObject(&pointLight);
+	scene.AddObject(&pointLight1);
 
 	Material sphere1CopperMat;
 	memset(&sphere1CopperMat, 0, sizeof(Material));

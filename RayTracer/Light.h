@@ -16,7 +16,9 @@ public:
 		float radius = 1.0f)
 		: m_vPosition(pos), m_fRadius(radius)
 	{
-		m_fSqRadius = m_fRadius * m_fRadius;
+		m_fRenderRadius = 0.1f;
+
+		m_fSqRadius = m_fRenderRadius * m_fRenderRadius;
 	}
 
 	Light(const vec3& pos,
@@ -24,7 +26,9 @@ public:
 		const std::string& name)
 		: m_vPosition(pos), m_fRadius(radius), Object(name)
 	{
-		m_fSqRadius = m_fRadius * m_fRadius;
+		m_fRenderRadius = 0.1f;
+
+		m_fSqRadius = m_fRenderRadius * m_fRenderRadius;
 	}
 
 	// Getter functions
@@ -104,6 +108,7 @@ protected:
 	vec3 m_vPosition;
 	float m_fRadius;
 	float m_fSqRadius;
+	float m_fRenderRadius;
 };
 
 // -----------------------------------------------------------------------
