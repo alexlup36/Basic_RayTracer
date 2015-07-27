@@ -33,7 +33,7 @@ const unsigned int iHeight = 600;
 const unsigned int iImageSize = iWidth * iHeight;
 const unsigned int iColor = 24;
 float moveSpeed = 1.0f;
-unsigned int MAX_REFLECTION_DEPTH = 1;
+unsigned int MAX_REFLECTION_DEPTH = 6;
 bool bGUIMode;
 unsigned int SliderPositionAmplitude = 30;
 int SquareLength = 10;
@@ -127,15 +127,15 @@ sf::Color PhongLighting(DirectionalLight& currentLight,
 		// Diffuse component
 		glm::vec3 lightDirection = glm::normalize(currentLight.Direction);
 		float fNormalDotLight = glm::max(glm::dot(normal, lightDirection), 0.0f);
-		sf::Color diffuseResult = material.Diffuse * currentLight.DiffuseLight;;
-		diffuseComponent = sf::Color((sf::Uint8)(diffuseResult.r * fNormalDotLight),
-			(sf::Uint8)(diffuseResult.g * fNormalDotLight),
-			(sf::Uint8)(diffuseResult.b * fNormalDotLight));
+		sf::Color diffuseResult = material.Diffuse * currentLight.DiffuseLight;
+		diffuseComponent = sf::Color((sf::Uint8)(diffuseResult.r * fNormalDotLight * fShade),
+			(sf::Uint8)(diffuseResult.g * fNormalDotLight * fShade),
+			(sf::Uint8)(diffuseResult.b * fNormalDotLight * fShade));
 
 		// Specular component
 		vec3& viewDirection = glm::normalize(pCam->GetCameraPosition() - position);
 		vec3& reflectionDirection = glm::reflect<vec3>(-lightDirection, normal);
-		float specular = std::pow(std::max(glm::dot(viewDirection, reflectionDirection), 0.0f), material.Shininess);
+		float specular = std::pow(std::max(glm::dot(viewDirection, reflectionDirection), 0.0f), material.Shininess) * fShade;
 		sf::Color specularResult = material.Specular * currentLight.SpecularLight;
 		specularComponent = sf::Color((sf::Uint8)(specularResult.r * specular),
 			(sf::Uint8)(specularResult.g * specular),
@@ -177,16 +177,20 @@ sf::Color PhongLighting(PointLight& currentLight,
 			currentLight.LinearAttenuation * distance +
 			currentLight.QuadraticAttenuation * (distance * distance));
 		glm::vec3 lightDirection = glm::normalize(lightVector);
-		float fNormalDotLight = glm::max(glm::dot(normal, lightDirection), 0.0f);
-		sf::Color diffuseResult = material.Diffuse * currentLight.DiffuseLight;;
-		diffuseComponent = sf::Color((sf::Uint8)(diffuseResult.r * fNormalDotLight),
-			(sf::Uint8)(diffuseResult.g * fNormalDotLight),
-			(sf::Uint8)(diffuseResult.b * fNormalDotLight));
+		float fNormalDotLight = glm::dot(normal, lightDirection);
+		if (fNormalDotLight > 0.0f)
+		{
+			sf::Color diffuseResult = material.Diffuse * currentLight.DiffuseLight;
+
+			diffuseComponent = sf::Color((sf::Uint8)(diffuseResult.r * fNormalDotLight * fShade),
+				(sf::Uint8)(diffuseResult.g * fNormalDotLight * fShade),
+				(sf::Uint8)(diffuseResult.b * fNormalDotLight * fShade));
+		}
 
 		// Specular component
 		vec3& viewDirection = glm::normalize(pCam->GetCameraPosition() - position);
 		vec3& reflectionDirection = glm::reflect<vec3>(-lightDirection, normal);
-		float specular = std::pow(std::max(glm::dot(viewDirection, reflectionDirection), 0.0f), material.Shininess);
+		float specular = std::pow(std::max(glm::dot(viewDirection, reflectionDirection), 0.0f), material.Shininess) * fShade;
 		sf::Color specularResult = material.Specular * currentLight.SpecularLight;
 		specularComponent = sf::Color((sf::Uint8)(specularResult.r * specular),
 			(sf::Uint8)(specularResult.g * specular),
@@ -220,15 +224,15 @@ sf::Color BlinnPhongLighting(DirectionalLight& currentLight,
 		// Diffuse component
 		glm::vec3 lightDirection = glm::normalize(currentLight.Direction);
 		float fNormalDotLight = glm::max(glm::dot(normal, lightDirection), 0.0f);
-		sf::Color diffuseResult = material.Diffuse * currentLight.DiffuseLight;;
-		diffuseComponent = sf::Color((sf::Uint8)(diffuseResult.r * fNormalDotLight),
-			(sf::Uint8)(diffuseResult.g * fNormalDotLight),
-			(sf::Uint8)(diffuseResult.b * fNormalDotLight));
+		sf::Color diffuseResult = material.Diffuse * currentLight.DiffuseLight;
+		diffuseComponent = sf::Color((sf::Uint8)(diffuseResult.r * fNormalDotLight * fShade),
+			(sf::Uint8)(diffuseResult.g * fNormalDotLight * fShade),
+			(sf::Uint8)(diffuseResult.b * fNormalDotLight * fShade));
 
 		// Specular component
 		vec3& viewDirection = glm::normalize(pCam->GetCameraPosition() - position);
 		vec3& halfVector = glm::normalize(lightDirection + viewDirection);
-		float specular = std::pow(std::max(glm::dot(normal, halfVector), 0.0f), material.Shininess);
+		float specular = std::pow(std::max(glm::dot(normal, halfVector), 0.0f), material.Shininess) * fShade;
 		sf::Color specularResult = material.Specular * currentLight.SpecularLight;
 		specularComponent = sf::Color((sf::Uint8)(specularResult.r * specular),
 			(sf::Uint8)(specularResult.g * specular),
@@ -269,15 +273,15 @@ sf::Color BlinnPhongLighting(PointLight& currentLight,
 			currentLight.QuadraticAttenuation * (distance * distance));
 		glm::vec3 lightDirection = glm::normalize(lightVector);
 		float fNormalDotLight = glm::max(glm::dot(normal, lightDirection), 0.0f);
-		sf::Color diffuseResult = material.Diffuse * currentLight.DiffuseLight;;
-		diffuseComponent = sf::Color((sf::Uint8)(diffuseResult.r * fNormalDotLight),
-			(sf::Uint8)(diffuseResult.g * fNormalDotLight),
-			(sf::Uint8)(diffuseResult.b * fNormalDotLight));
+		sf::Color diffuseResult = material.Diffuse * currentLight.DiffuseLight;
+		diffuseComponent = sf::Color((sf::Uint8)(diffuseResult.r * fNormalDotLight * fShade),
+			(sf::Uint8)(diffuseResult.g * fNormalDotLight * fShade),
+			(sf::Uint8)(diffuseResult.b * fNormalDotLight * fShade));
 
 		// Specular component
 		vec3& viewDirection = glm::normalize(pCam->GetCameraPosition() - position);
 		vec3& halfVector = glm::normalize(lightDirection + viewDirection);
-		float specular = std::pow(std::max(glm::dot(normal, halfVector), 0.0f), material.Shininess);
+		float specular = std::pow(std::max(glm::dot(normal, halfVector), 0.0f), material.Shininess) * fShade;
 		sf::Color specularResult = material.Specular * currentLight.SpecularLight;
 		specularComponent = sf::Color((sf::Uint8)(specularResult.r * specular),
 			(sf::Uint8)(specularResult.g * specular),
@@ -387,7 +391,7 @@ void Trace(const Ray& ray, sf::Color& colorAccumulator, Scene& scene, unsigned i
 			int xSquareCoordinate = 0;
 			int ySquareCoordinate = 0;
 
-			// Calculate the coordinates of the square where the intersection occured
+			// Calculate the coordinates of the square where the intersection occurred
 			CalculateSquareCoord(intersectionX, intersectionZ, xSquareCoordinate, ySquareCoordinate);
 
 			if ((abs(xSquareCoordinate) + abs(ySquareCoordinate)) % 2 == 0)
@@ -416,8 +420,9 @@ void Trace(const Ray& ray, sf::Color& colorAccumulator, Scene& scene, unsigned i
 				DirectionalLight& currentLight = *dirLightSources[lightIndex];
 
 				// Calculate the intersection of the reflected ray
-				glm::vec3 startPoint = intersect.IntersectionPoint + intersect.NormalAtIntersection * 0.1f;
 				glm::vec3 lightDirection = glm::normalize(currentLight.Direction);
+				glm::vec3 startPoint = intersect.IntersectionPoint + lightDirection * Constants::EPS;
+				
 				Ray shadowRay(startPoint, lightDirection);
 
 				// Get the object list
@@ -426,12 +431,17 @@ void Trace(const Ray& ray, sf::Color& colorAccumulator, Scene& scene, unsigned i
 				// Check all objects in the scene for intersection against the shadow ray
 				for (Object* obj : objectList)
 				{
-					if (obj != NULL && obj->GetIndex() != intersect.HitObject->GetIndex())
+					if (obj->GetIndex() != currentLight.GetIndex())
 					{
 						IntersectionInfo intersection = obj->FindIntersection(shadowRay);
 						if (intersection.HitObject != NULL)
 						{
-							fShade = 0.0f;
+							if (intersection.HitObject->Type() != ObjectType::kePOINTLIGHT &&
+								intersection.HitObject->Type() != ObjectType::keDIRECTIONALLIGHT)
+							{
+								fShade = 0.0f;
+								break;
+							}
 						}
 					}
 				}
@@ -444,8 +454,10 @@ void Trace(const Ray& ray, sf::Color& colorAccumulator, Scene& scene, unsigned i
 				PointLight& currentLight = *pointLightSources[lightIndex];
 
 				// Calculate the intersection of the reflected ray
-				glm::vec3 startPoint = intersect.IntersectionPoint + intersect.NormalAtIntersection * 0.1f;
-				glm::vec3 lightDirection = glm::normalize(currentLight.Position - startPoint);
+				glm::vec3 lightVector = currentLight.Position - intersect.IntersectionPoint;
+				float distance = glm::length(lightVector);
+				glm::vec3 lightDirection = glm::normalize(lightVector);
+				glm::vec3 startPoint = intersect.IntersectionPoint + lightDirection * Constants::EPS;
 				Ray shadowRay(startPoint, lightDirection);
 
 				// Get the object list
@@ -454,12 +466,24 @@ void Trace(const Ray& ray, sf::Color& colorAccumulator, Scene& scene, unsigned i
 				// Check all objects in the scene for intersection against the shadow ray
 				for (Object* obj : objectList)
 				{
-					if (obj != NULL && obj->GetIndex() != intersect.HitObject->GetIndex())
+					// Don't check for intersections against light sources
+					if (obj->Type() == ObjectType::kePOINTLIGHT ||
+						obj->Type() == ObjectType::keDIRECTIONALLIGHT)
 					{
-						IntersectionInfo intersection = obj->FindIntersection(shadowRay);
+						continue;
+					}
+
+					IntersectionInfo intersection = obj->FindIntersection(shadowRay);
+					if (intersection.RayLength < distance)
+					{
 						if (intersection.HitObject != NULL)
 						{
-							fShade = 0.0f;
+							if (intersection.HitObject->Type() != ObjectType::kePOINTLIGHT &&
+								intersection.HitObject->Type() != ObjectType::keDIRECTIONALLIGHT)
+							{
+								fShade = 0.0f;
+								break;
+							}
 						}
 					}
 				}
@@ -470,34 +494,36 @@ void Trace(const Ray& ray, sf::Color& colorAccumulator, Scene& scene, unsigned i
 		// Shading model
 
 		// Calculate the color of the object based on the shading model
-		sf::Color illuminationModel = FindColor(intersect, hitObjectMaterial, scene, 1.0f);
-		colorAccumulator += illuminationModel;
+		colorAccumulator += FindColor(intersect, hitObjectMaterial, scene, fShade);
 
 		// --------------------------------------------------------------------
 		// Reflection
 
-		//// If the hit object is reflective or transparent and we
-		//// haven't reached max reflection depth
-		//if ((hitObjectMaterial.Reflectivity > 0 ||
-		//	hitObjectMaterial.Transparency > 0) &&
-		//	(iReflectionDepth < MAX_REFLECTION_DEPTH))
-		//{
-		//	// Calculate the reflected ray
-		//	glm::vec3 lightDirection = glm::normalize(pointLightSources[0]->Position - intersect.IntersectionPoint);
-		//	vec3 reflectionDirection = glm::reflect<vec3>(-lightDirection, intersect.NormalAtIntersection);
+		// If the hit object is reflective or transparent and we
+		// haven't reached max reflection depth
+		if (hitObjectMaterial.Reflectivity > 0 ||
+			hitObjectMaterial.Transparency > 0)
+		{
+			// Go through all the point lights in the scene
+			
+			// Calculate the reflected ray
+			vec3 reflectionDirection = glm::normalize(glm::reflect<vec3>(ray.GetDirection(), intersect.NormalAtIntersection));
 
-		//	// Calculate the intersection of the reflected ray
-		//	glm::vec3 startPoint = intersect.NormalAtIntersection * 0.01f;
-		//	Ray reflectionRay(startPoint, reflectionDirection);
+			// Calculate the intersection of the reflected ray
+			glm::vec3 startPoint = intersect.IntersectionPoint + reflectionDirection * Constants::EPS;
+			Ray reflectionRay(startPoint, reflectionDirection);
 
-		//	sf::Color reflectionColor = sf::Color(0, 0, 0, 255);
-		//	Trace(reflectionRay, reflectionColor, scene, iReflectionDepth + 1);
+			if (iReflectionDepth < MAX_REFLECTION_DEPTH)
+			{
+				sf::Color reflectionColor = sf::Color(0, 0, 0, 255);
+				Trace(reflectionRay, reflectionColor, scene, iReflectionDepth + 1);
 
-		//	colorAccumulator += sf::Color((sf::Uint8)(reflectionColor.r * hitObjectMaterial.Reflectivity),
-		//		(sf::Uint8)(reflectionColor.g * hitObjectMaterial.Reflectivity),
-		//		(sf::Uint8)(reflectionColor.b * hitObjectMaterial.Reflectivity),
-		//		255);
-		//}
+				colorAccumulator += sf::Color((sf::Uint8)(reflectionColor.r * hitObjectMaterial.Reflectivity),
+					(sf::Uint8)(reflectionColor.g * hitObjectMaterial.Reflectivity),
+					(sf::Uint8)(reflectionColor.b * hitObjectMaterial.Reflectivity),
+					255);
+			}
+		}
 
 		// --------------------------------------------------------------------
 	}
@@ -678,10 +704,6 @@ void Update(float dt)
 			if (pSelectedPointLight != NULL)
 			{
 				pSelectedPointLight->Position = glm::vec3(xPos, yPos, zPos);
-
-				std::cout << "XPos: " << xPos << "YPos: " << yPos << "ZPos: " << zPos << std::endl;
-				std::vector<Object*> objects = scene.ObjectList();
-				PointLight* pointlight = dynamic_cast<PointLight*>(objects[0]);
 			}
 		}
 	}
@@ -793,7 +815,7 @@ int main(int argc, char **argv)
 		2.0f,
 		"PointLightRed");
 
-	//dirLightSources.push_back(&dirLight);
+	dirLightSources.push_back(&dirLight);
 	pointLightSources.push_back(&pointLight1);
 	//pointLightSources.push_back(&pointLight2);
 	//pointLightSources.push_back(&pointLight3);
@@ -805,7 +827,7 @@ int main(int argc, char **argv)
 	// ------------------------------------------------------------------------
 	// Scene
 
-	//scene.AddObject(&dirLight);
+	scene.AddObject(&dirLight);
 	scene.AddObject(&pointLight1);
 
 	Material sphere1CopperMat;
@@ -832,15 +854,15 @@ int main(int argc, char **argv)
 	greenRubberMat.Diffuse = sf::Color(102, 128, 102, 255);
 	greenRubberMat.Specular = sf::Color(10, 179, 10, 255);
 	greenRubberMat.Shininess = 10.0f;
-	greenRubberMat.Reflectivity = 0.01f;
+	greenRubberMat.Reflectivity = 1.0f;
 	greenRubberMat.Transparency = 0.0f;
 
 	std::shared_ptr<Sphere> pSphere = std::make_shared<Sphere>(sphere1CopperMat, 
-		glm::vec3(1.0f, 1.0f, 2.0f), 
+		glm::vec3(1.0f, 0.5f, 2.0f), 
 		0.2f,
 		"CopperSphere");
 	std::shared_ptr<Sphere> pSphere2 = std::make_shared<Sphere>(sphere2SilverMat,
-		glm::vec3(0.0f, 1.0f, 2.0f),
+		glm::vec3(0.2f, 0.2f, 2.0f),
 		0.3f,
 		"SilverSphere");
 	std::shared_ptr<Sphere> pSphere3 = std::make_shared<Sphere>(sphere2SilverMat,
@@ -856,7 +878,7 @@ int main(int argc, char **argv)
 	std::shared_ptr<Plane> pPlaneBack = std::make_shared<Plane>(Normal(0.0f, 0.0f, 1.0f), Point(0.0f, 0.0f, 10.0f));
 
 	scene.AddObject(pSphere.get());
-	//scene.AddObject(pSphere2.get());
+	scene.AddObject(pSphere2.get());
 	//scene.AddObject(pSphere3.get());
 	scene.AddObject(pPlaneBottom.get());
 	//scene.AddObject(pPlaneLeft.get());

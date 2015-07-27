@@ -14,31 +14,27 @@ class Light : public Object
 public:
 	Light(const vec3& pos = glm::vec3(0.0f),
 		float radius = 1.0f)
-		: m_vPosition(pos), m_fRadius(radius)
+		: Position(pos), Radius(radius)
 	{
-		m_fRenderRadius = 0.1f;
+		RenderRadius = 0.1f;
 
-		m_fSqRadius = m_fRenderRadius * m_fRenderRadius;
+		m_fSqRadius = RenderRadius * RenderRadius;
 	}
 
 	Light(const vec3& pos,
 		float radius,
 		const std::string& name)
-		: m_vPosition(pos), m_fRadius(radius), Object(name)
+		: Position(pos), Radius(radius), Object(name)
 	{
-		m_fRenderRadius = 0.1f;
+		RenderRadius = 0.1f;
 
-		m_fSqRadius = m_fRenderRadius * m_fRenderRadius;
+		m_fSqRadius = RenderRadius * RenderRadius;
 	}
-
-	// Getter functions
-	inline vec3 GetPosition() { return m_vPosition; }
-	inline float GetRadius() { return m_fRadius; }
 
 	// Find distance from the Camera to the intersection point
 	inline IntersectionInfo FindIntersection(const Ray& ray)
 	{
-		vec3 m = ray.GetOrigin() - m_vPosition;
+		vec3 m = ray.GetOrigin() - Position;
 		float b = glm::dot(m, ray.GetDirection());
 		float c = glm::dot(m, m) - m_fSqRadius;
 
@@ -69,7 +65,7 @@ public:
 
 					return IntersectionInfo(IntersectionPoint,
 						t1,
-						glm::normalize(IntersectionPoint - m_vPosition),
+						glm::normalize(IntersectionPoint - Position),
 						this);
 				}
 				else
@@ -78,7 +74,7 @@ public:
 
 					return IntersectionInfo(IntersectionPoint,
 						t2,
-						glm::normalize(IntersectionPoint - m_vPosition),
+						glm::normalize(IntersectionPoint - Position),
 						this);
 				}
 			}
@@ -88,7 +84,7 @@ public:
 
 				return IntersectionInfo(IntersectionPoint,
 					t1,
-					glm::normalize(IntersectionPoint - m_vPosition),
+					glm::normalize(IntersectionPoint - Position),
 					this);
 			}
 		}
@@ -98,17 +94,20 @@ public:
 
 			return IntersectionInfo(IntersectionPoint,
 				t2,
-				glm::normalize(IntersectionPoint - m_vPosition),
+				glm::normalize(IntersectionPoint - Position),
 				this);
 		}
 	}
 
 protected:
 
-	vec3 m_vPosition;
-	float m_fRadius;
 	float m_fSqRadius;
-	float m_fRenderRadius;
+
+public:
+
+	glm::vec3 Position;
+	float Radius;
+	float RenderRadius;
 };
 
 // -----------------------------------------------------------------------

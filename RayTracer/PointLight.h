@@ -22,8 +22,6 @@ public:
 		float fRadius,
 		const std::string& name);
 
-	vec3 Position;
-
 	sf::Color AmbientLight;
 	sf::Color DiffuseLight;
 	sf::Color SpecularLight;
