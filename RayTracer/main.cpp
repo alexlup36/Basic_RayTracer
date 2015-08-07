@@ -37,6 +37,7 @@ unsigned int MAX_REFLECTION_DEPTH = 6;
 bool bGUIMode;
 unsigned int SliderPositionAmplitude = 30;
 int SquareLength = 10;
+const int SampleCount = 4;
 
 enum Button
 {
@@ -636,21 +637,57 @@ void Draw(Scene& scene)
 	{
 		for (int iColumn = 0; iColumn < iWidth; iColumn++)
 		{
-			float fNormalizedXPos = ((fHalfWidth - iColumn) / fHalfWidth);
-			float fNormalizedYPos = ((fHalfHeight - iRow) / fHalfHeight);
+			float rAcc = 0.0f; 
+			float gAcc = 0.0f; 
+			float bAcc = 0.0f; 
+			float aAcc = 0.0f;
 
-			float fAlpha = fTanHalfHorizFOV * fNormalizedXPos;
-			float fBeta = fTanHalfVertFOV * fNormalizedYPos;
+			float startX = iColumn - 2.0f * SampleCount + 0.25f / SampleCount;
+			float startY = iRow + 2.0f * SampleCount - 0.25f / SampleCount;
 
-			iCurrentPixel = 4 * (iColumn + iRow * iWidth);
+			for (int row = 0; row < SampleCount; row++)
+			{
+				for (int col = 0; col < SampleCount; col++)
+				{
+					// -------------------------------------------------------------------
 
-			glm::vec3 rayDirection = glm::normalize(fAlpha * u + fBeta * v - w);
+					float currentX = startX + col * SampleCount;
+					float currentY = startY + row * SampleCount;
+					
+					// -------------------------------------------------------------------
 
-			Ray camIJRay(pCam->GetCameraPosition(), rayDirection);
+					float fNormalizedXPos = ((fHalfWidth - currentX) / fHalfWidth);
+					float fNormalizedYPos = ((fHalfHeight - currentY) / fHalfHeight);
 
-			sf::Color surfaceColor = sf::Color(0, 0, 0, 255);
-			Trace(camIJRay, surfaceColor, scene, 0);
-			SetPixelColor(iCurrentPixel, surfaceColor);
+					float fAlpha = fTanHalfHorizFOV * fNormalizedXPos;
+					float fBeta = fTanHalfVertFOV * fNormalizedYPos;
+
+					iCurrentPixel = 4 * (iColumn + iRow * iWidth);
+
+					glm::vec3 rayDirection = glm::normalize(fAlpha * u + fBeta * v - w);
+
+					Ray camIJRay(pCam->GetCameraPosition(), rayDirection);
+
+					sf::Color surfaceColor = sf::Color(0, 0, 0, 255);
+					Trace(camIJRay, surfaceColor, scene, 0);
+					
+					rAcc += surfaceColor.r;
+					gAcc += surfaceColor.g;
+					bAcc += surfaceColor.b;
+					aAcc += surfaceColor.a;
+
+					// -------------------------------------------------------------------
+				}
+			}
+
+			// Calculate final color
+			sf::Color finalPixelColor = sf::Color(
+				(sf::Uint8)(rAcc / (SampleCount * SampleCount)), 
+				(sf::Uint8)(gAcc / (SampleCount * SampleCount)), 
+				(sf::Uint8)(bAcc / (SampleCount * SampleCount)), 
+				(sf::Uint8)(aAcc / (SampleCount * SampleCount)));
+
+			SetPixelColor(iCurrentPixel, finalPixelColor);
 		}
 	}
 }
