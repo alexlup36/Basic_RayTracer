@@ -25,8 +25,10 @@ public:
 	inline const glm::vec3& GetCameraTarget() { return m_vCameraTarget; }
 	inline const glm::vec3& GetCameraUp() { return m_vCameraUp; }
 
-	inline const float GetXRotation() { return m_fYawRotation; }
-	inline const float GetYRotation() { return m_fPitchRotation; }
+	inline const float GetXRotation() { return m_fPitchRotation; }
+	inline const float GetYRotation() { return m_fYawRotation; }
+	inline void SetXRotation(float rot) { m_fPitchRotation = rot; }
+	inline void SetYRotation(float rot) { m_fYawRotation = rot; }
 	
 	inline float GetVerticalFOV() { return m_fVerticalFOV; }
 	inline float GetHorizontalFOV() { return m_fHorizontalFOV; }

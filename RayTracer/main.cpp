@@ -27,17 +27,43 @@
 #include "TGUI/TGUI.hpp"
 
 // ------------------------------------------------------------------------
+
+// Multithreading
+#include <thread>
+#include <mutex>
+#include <condition_variable>
+#define MULTITHREADING
+
+#ifdef MULTITHREADING
+#include <boost/threadpool.hpp>
+#endif // MULTITHREADING
+
+#ifdef MULTITHREADING
+
+std::unique_ptr<boost::threadpool::pool> m_ThreadPool;
+typedef boost::function<void()> Task;
+std::vector<Task> ImageProcessingTaskList;
+
+unsigned int m_iThreadCount = 24;
+
+void SetupMultithread();
+void ProcessLines(int iStartLineIndex, int iEndLineIndex);
+
+#endif // MULTITHREADING
+
+// ------------------------------------------------------------------------
 // Window
 const unsigned int iWidth = 800;
 const unsigned int iHeight = 600;
 const unsigned int iImageSize = iWidth * iHeight;
 const unsigned int iColor = 24;
 float moveSpeed = 1.0f;
-unsigned int MAX_REFLECTION_DEPTH = 6;
+unsigned int MAX_REFLECTION_DEPTH = 4;
 bool bGUIMode;
 unsigned int SliderPositionAmplitude = 30;
-int SquareLength = 10;
-const int SampleCount = 4;
+int SquareLength = 5;
+const int SampleCount = 1;
+const float SampleDistance = 1.0f / SampleCount;
 
 enum Button
 {
@@ -312,7 +338,6 @@ void CalculateSquareCoord(int intersectionX, int intersectionZ, int& coordX, int
 	if (intersectionX < 0.0f)
 	{
 		// Left half
-
 		if (intersectionZ > 0.0f)
 		{
 			// Top left quadrant
@@ -337,11 +362,9 @@ void CalculateSquareCoord(int intersectionX, int intersectionZ, int& coordX, int
 	else
 	{
 		// Right half
-
 		if (intersectionZ > 0.0f)
 		{
 			// Top right quadrant
-
 		}
 		else
 		{
@@ -377,7 +400,7 @@ void Trace(const Ray& ray, sf::Color& colorAccumulator, Scene& scene, unsigned i
 		// --------------------------------------------------------------------
 		// Get the material of the hit object
 
-		Material& hitObjectMaterial = intersect.HitObject->GetMaterial();
+		Material hitObjectMaterial = intersect.HitObject->GetMaterial();
 
 		// --------------------------------------------------------------------
 		// Procedural plane texturing
@@ -637,57 +660,76 @@ void Draw(Scene& scene)
 	{
 		for (int iColumn = 0; iColumn < iWidth; iColumn++)
 		{
-			float rAcc = 0.0f; 
-			float gAcc = 0.0f; 
-			float bAcc = 0.0f; 
-			float aAcc = 0.0f;
-
-			float startX = iColumn - 2.0f * SampleCount + 0.25f / SampleCount;
-			float startY = iRow + 2.0f * SampleCount - 0.25f / SampleCount;
-
-			for (int row = 0; row < SampleCount; row++)
+			// Anti-aliasing active ---------------------------------------------------------
+			if (SampleCount > 1.0f)
 			{
-				for (int col = 0; col < SampleCount; col++)
+				float rAcc = 0.0f;
+				float gAcc = 0.0f;
+				float bAcc = 0.0f;
+				float aAcc = 0.0f;
+
+				float startX = (float)iColumn;
+				float startY = (float)iRow;
+				float endX = (float)iColumn + 1.0f;
+				float endY = (float)iRow + 1.0f;
+
+				for (; startX < endX; startX += SampleDistance)
 				{
-					// -------------------------------------------------------------------
+					for (; startY < endY; startY += SampleDistance)
+					{
+						// -------------------------------------------------------------------
 
-					float currentX = startX + col * SampleCount;
-					float currentY = startY + row * SampleCount;
-					
-					// -------------------------------------------------------------------
+						float fNormalizedXPos = ((fHalfWidth - startX) / fHalfWidth);
+						float fNormalizedYPos = ((fHalfHeight - startY) / fHalfHeight);
 
-					float fNormalizedXPos = ((fHalfWidth - currentX) / fHalfWidth);
-					float fNormalizedYPos = ((fHalfHeight - currentY) / fHalfHeight);
+						float fAlpha = fTanHalfHorizFOV * fNormalizedXPos;
+						float fBeta = fTanHalfVertFOV * fNormalizedYPos;
 
-					float fAlpha = fTanHalfHorizFOV * fNormalizedXPos;
-					float fBeta = fTanHalfVertFOV * fNormalizedYPos;
+						glm::vec3 rayDirection = glm::normalize(fAlpha * u + fBeta * v - w);
 
-					iCurrentPixel = 4 * (iColumn + iRow * iWidth);
+						Ray camIJRay(pCam->GetCameraPosition(), rayDirection);
 
-					glm::vec3 rayDirection = glm::normalize(fAlpha * u + fBeta * v - w);
+						sf::Color surfaceColor = sf::Color(0, 0, 0, 255);
+						Trace(camIJRay, surfaceColor, scene, 0);
 
-					Ray camIJRay(pCam->GetCameraPosition(), rayDirection);
+						rAcc += surfaceColor.r;
+						gAcc += surfaceColor.g;
+						bAcc += surfaceColor.b;
+						aAcc += surfaceColor.a;
 
-					sf::Color surfaceColor = sf::Color(0, 0, 0, 255);
-					Trace(camIJRay, surfaceColor, scene, 0);
-					
-					rAcc += surfaceColor.r;
-					gAcc += surfaceColor.g;
-					bAcc += surfaceColor.b;
-					aAcc += surfaceColor.a;
-
-					// -------------------------------------------------------------------
+						// -------------------------------------------------------------------
+					}
 				}
+
+				// Calculate final color
+				sf::Color finalPixelColor = sf::Color(
+					(sf::Uint8)(rAcc / SampleCount),
+					(sf::Uint8)(gAcc / SampleCount),
+					(sf::Uint8)(bAcc / SampleCount),
+					(sf::Uint8)(aAcc / SampleCount));
+
+				iCurrentPixel = 4 * (iColumn + iRow * iWidth);
+				SetPixelColor(iCurrentPixel, finalPixelColor);
 			}
+			else // No anti-aliasing ---------------------------------------------------------
+			{
+				float fNormalizedXPos = ((fHalfWidth - iColumn) / fHalfWidth);
+				float fNormalizedYPos = ((fHalfHeight - iRow) / fHalfHeight);
 
-			// Calculate final color
-			sf::Color finalPixelColor = sf::Color(
-				(sf::Uint8)(rAcc / (SampleCount * SampleCount)), 
-				(sf::Uint8)(gAcc / (SampleCount * SampleCount)), 
-				(sf::Uint8)(bAcc / (SampleCount * SampleCount)), 
-				(sf::Uint8)(aAcc / (SampleCount * SampleCount)));
+				float fAlpha = fTanHalfHorizFOV * fNormalizedXPos;
+				float fBeta = fTanHalfVertFOV * fNormalizedYPos;
 
-			SetPixelColor(iCurrentPixel, finalPixelColor);
+				iCurrentPixel = 4 * (iColumn + iRow * iWidth);
+
+				glm::vec3 rayDirection = glm::normalize(fAlpha * u + fBeta * v - w);
+
+				Ray camIJRay(pCam->GetCameraPosition(), rayDirection);
+
+				sf::Color surfaceColor = sf::Color(0, 0, 0, 255);
+				Trace(camIJRay, surfaceColor, scene, 0);
+
+				SetPixelColor(iCurrentPixel, surfaceColor);
+			}
 		}
 	}
 }
@@ -778,6 +820,8 @@ void UpdateInput(glm::vec3& moveVector)
 		const glm::vec3 cameraPosition = pCam->GetCameraPosition();
 
 		std::cout << "Camera position: " << cameraPosition.x << " " << cameraPosition.y << " " << cameraPosition.z << std::endl;
+		std::cout << "Camera x rot: " << pCam->GetXRotation() << std::endl;
+		std::cout << "Camera y rot: " << pCam->GetYRotation() << std::endl;
 	}
 
 	// ------------------------------------------------------------------------
@@ -795,6 +839,12 @@ int main(int argc, char **argv)
 	}
 
 	bGUIMode = false;
+
+	// ------------------------------------------------------------------------
+
+#ifdef MULTITHREADING
+	SetupMultithread();
+#endif // MULTITHREADING
 
 	// ------------------------------------------------------------------------
 
@@ -817,9 +867,11 @@ int main(int argc, char **argv)
 
 	// ------------------------------------------------------------------------
 	// Camera
-	pCam = std::make_shared<Camera>(glm::vec3(0.0f, 3.0f, 2.0f),
+	pCam = std::make_shared<Camera>(glm::vec3(1.21902f, 0.571253f, 2.34262f),
 		60.0f,
 		90.0f);
+	pCam->SetXRotation(0.208212f);
+	pCam->SetYRotation(-8.64331f);
 
 	// ------------------------------------------------------------------------
 
@@ -994,7 +1046,22 @@ int main(int argc, char **argv)
 		}
 
 		Update(fCurrentTime);
+
+#ifdef MULTITHREADING
+
+		for (unsigned int i = 0; i < ImageProcessingTaskList.size(); i++)
+		{
+			m_ThreadPool->schedule(ImageProcessingTaskList[i]);
+		}
+
+		m_ThreadPool->wait();
+#else
+
 		Draw(scene);
+
+#endif // MULTITHREADING
+
+		
 
 		window.setTitle(std::to_string(fFPS));
 
@@ -1184,5 +1251,144 @@ void comboBoxSelectionCallback(const tgui::Callback& callback)
 		}
 	}
 }
+
+// ------------------------------------------------------------------------
+// Multithreading
+// ------------------------------------------------------------------------
+
+#ifdef MULTITHREADING
+
+void SetupMultithread()
+{
+	if (m_ThreadPool == nullptr)
+	{
+		m_ThreadPool = std::make_unique<boost::threadpool::pool>(m_iThreadCount);
+	}
+	ImageProcessingTaskList.clear();
+
+	// Create a list of tasks
+	for (unsigned int iThreadIndex = 0; iThreadIndex < m_iThreadCount; iThreadIndex++)
+	{
+		// Calculate the start and end index to process for the current thread
+		int iStep = iHeight / m_iThreadCount;
+
+		int iStartIndex = iStep * iThreadIndex;
+		int iEndIndex = iStep * (iThreadIndex + 1);
+
+		if (iThreadIndex == m_iThreadCount - 1)
+		{
+			iEndIndex = iHeight;
+		}
+
+		// Initialize task list for lambda calculation
+		ImageProcessingTaskList.push_back(boost::bind(&ProcessLines,
+			iStartIndex,
+			iEndIndex));
+	}
+}
+
+// ------------------------------------------------------------------------
+
+void ProcessLines(int iStartLineIndex, int iEndLineIndex)
+{
+	// ------------------------------------------------------------------------
+	// Pre-compute camera values
+	float fTanHalfHorizFOV = glm::tan(rad(pCam->GetHorizontalFOV() / 2.0f));
+	float fTanHalfVertFOV = glm::tan(rad(pCam->GetVerticalFOV() / 2.0f));
+
+	float fHalfWidth = iWidth * 0.5f;
+	float fHalfHeight = iHeight * 0.5f;
+
+	// ------------------------------------------------------------------------
+	// Build a coordinate frame
+	vec3 vEyeTarget = pCam->GetCameraPosition() - pCam->GetCameraTarget();
+
+	vec3 w = glm::normalize(vEyeTarget);
+	vec3 u = glm::normalize(glm::cross(pCam->GetCameraUp(), w));
+	vec3 v = glm::normalize(glm::cross(w, u));
+
+	// ------------------------------------------------------------------------
+
+	int iCurrentPixel;
+
+	for (int iRow = iStartLineIndex; iRow < iEndLineIndex; iRow++)
+	{
+		for (int iColumn = 0; iColumn < iWidth; iColumn++)
+		{
+			// Anti-aliasing active ---------------------------------------------------------
+			if (SampleCount > 1.0f)
+			{
+				float rAcc = 0.0f;
+				float gAcc = 0.0f;
+				float bAcc = 0.0f;
+				float aAcc = 0.0f;
+
+				float startX = (float)iColumn;
+				float startY = (float)iRow;
+				float endX = (float)iColumn + 1.0f;
+				float endY = (float)iRow + 1.0f;
+
+				for (; startX < endX; startX += SampleDistance)
+				{
+					for (; startY < endY; startY += SampleDistance)
+					{
+						// -------------------------------------------------------------------
+
+						float fNormalizedXPos = ((fHalfWidth - startX) / fHalfWidth);
+						float fNormalizedYPos = ((fHalfHeight - startY) / fHalfHeight);
+
+						float fAlpha = fTanHalfHorizFOV * fNormalizedXPos;
+						float fBeta = fTanHalfVertFOV * fNormalizedYPos;
+
+						glm::vec3 rayDirection = glm::normalize(fAlpha * u + fBeta * v - w);
+
+						Ray camIJRay(pCam->GetCameraPosition(), rayDirection);
+
+						sf::Color surfaceColor = sf::Color(0, 0, 0, 255);
+						Trace(camIJRay, surfaceColor, scene, 0);
+
+						rAcc += surfaceColor.r;
+						gAcc += surfaceColor.g;
+						bAcc += surfaceColor.b;
+						aAcc += surfaceColor.a;
+
+						// -------------------------------------------------------------------
+					}
+				}
+
+				// Calculate final color
+				sf::Color finalPixelColor = sf::Color(
+					(sf::Uint8)(rAcc / SampleCount),
+					(sf::Uint8)(gAcc / SampleCount),
+					(sf::Uint8)(bAcc / SampleCount),
+					(sf::Uint8)(aAcc / SampleCount));
+
+				iCurrentPixel = 4 * (iColumn + iRow * iWidth);
+				SetPixelColor(iCurrentPixel, finalPixelColor);
+			}
+			else // No anti-aliasing ---------------------------------------------------------
+			{
+				float fNormalizedXPos = ((fHalfWidth - iColumn) / fHalfWidth);
+				float fNormalizedYPos = ((fHalfHeight - iRow) / fHalfHeight);
+
+				float fAlpha = fTanHalfHorizFOV * fNormalizedXPos;
+				float fBeta = fTanHalfVertFOV * fNormalizedYPos;
+
+				iCurrentPixel = 4 * (iColumn + iRow * iWidth);
+
+				glm::vec3 rayDirection = glm::normalize(fAlpha * u + fBeta * v - w);
+
+				Ray camIJRay(pCam->GetCameraPosition(), rayDirection);
+
+				sf::Color surfaceColor = sf::Color(0, 0, 0, 255);
+				Trace(camIJRay, surfaceColor, scene, 0);
+
+				SetPixelColor(iCurrentPixel, surfaceColor);
+			}
+		}
+	}
+}
+
+#endif // MULTITHREADING
 
 // ------------------------------------------------------------------------
