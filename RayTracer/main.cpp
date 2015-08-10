@@ -58,12 +58,14 @@ const unsigned int iHeight = 600;
 const unsigned int iImageSize = iWidth * iHeight;
 const unsigned int iColor = 24;
 float moveSpeed = 1.0f;
-unsigned int MAX_REFLECTION_DEPTH = 4;
+unsigned int MAX_REFLECTION_DEPTH = 5;
+unsigned int MAX_REFRACTION_DEPTH = 5;
 bool bGUIMode;
 unsigned int SliderPositionAmplitude = 30;
 int SquareLength = 5;
 const int SampleCount = 1;
 const float SampleDistance = 1.0f / SampleCount;
+const float AmbientRefractiveIndex = 1.0003f;
 
 enum Button
 {
@@ -379,7 +381,12 @@ void CalculateSquareCoord(int intersectionX, int intersectionZ, int& coordX, int
 
 // -----------------------------------------------------------------------------
 
-void Trace(const Ray& ray, sf::Color& colorAccumulator, Scene& scene, unsigned int iReflectionDepth)
+void Trace(const Ray& ray, 
+	sf::Color& colorAccumulator, 
+	Scene& scene, 
+	unsigned int iReflectionDepth,
+	unsigned int iRefractionDepth,
+	float fRefractiveIndex)
 {
 	// Calculate intersection
 	IntersectionInfo intersect = RaySceneIntersection(ray, scene);
@@ -521,6 +528,115 @@ void Trace(const Ray& ray, sf::Color& colorAccumulator, Scene& scene, unsigned i
 		colorAccumulator += FindColor(intersect, hitObjectMaterial, scene, fShade);
 
 		// --------------------------------------------------------------------
+		// Refraction
+
+		// Calculate the direction of the refracted ray
+		glm::vec3 refractedDirection = glm::vec3(0.0f);
+
+		glm::vec3 direction = glm::normalize(ray.GetDirection());
+		float cos_a1 = glm::dot(direction, intersect.NormalAtIntersection);
+		float sin_a1 = 0.0f;
+
+		if (cos_a1 <= -1.0f)
+		{
+			if (cos_a1 < -1.0001f)
+			{
+				std::cout << "Dot product too small." << std::endl;
+			}
+			cos_a1 = -1.0f;
+			sin_a1 = 0.0f;
+		}
+		else if (cos_a1 >= 1.0f)
+		{
+			if (cos_a1 > 1.0001f)
+			{
+				std::cout << "Dot product too large." << std::endl;
+			}
+			cos_a1 = 1.0f;
+			sin_a1 = 0.0f;
+		}
+		else
+		{
+			sin_a1 = sqrt(1.0f - cos_a1 * cos_a1);
+		}
+
+		// Calculate the ratio of the two refractive indices
+		const float ratio = fRefractiveIndex / hitObjectMaterial.RefractiveIndex;
+
+		// Use Snell's law to calculate the sine of the refracted ray and normal
+		const float sin_a2 = ratio * sin_a1;
+
+		// Reflection factor
+		float fReflectionFactor = 0.0f;
+
+		if (sin_a2 <= -1.0f || sin_a2 >= 1.0f)
+		{
+			// There is no refraction, only reflection
+			fReflectionFactor = 1.0f;
+		}
+		else
+		{
+			// Solve quadratic for k
+			float x1, x2;
+
+			float a = 1.0f;
+			float b = 2.0f * cos_a1;
+			float c = 1.0f - 1.0f / (ratio * ratio);
+
+			float maxAlignment = -0.0001f;
+
+			if (SolveQuadratic(a, b, c, x1, x2) == true)
+			{
+				// Solution was found => find the correct one and exclude the ghost one
+				
+				// ---------------------------------------------------------------------
+				// Calculate the direction of the refracted ray using the first solution
+
+				// Calculate the candidate for the refractive ray direction
+				glm::vec3 refractCandidate = direction + x1 * intersect.NormalAtIntersection;
+
+				// Calculate the angle between the incident and refracted ray
+				float alignment = glm::dot(direction, refractCandidate);
+				if (alignment > maxAlignment)
+				{
+					maxAlignment = alignment;
+					refractedDirection = refractCandidate;
+				}
+
+				// ---------------------------------------------------------------------
+				// Calculate the direction of the refracted ray using the second solution
+
+				refractCandidate = direction + x2 * intersect.NormalAtIntersection;
+				alignment = glm::dot(direction, refractCandidate);
+				if (alignment > maxAlignment)
+				{
+					maxAlignment = alignment;
+					refractedDirection = refractCandidate;
+				}
+
+				// ---------------------------------------------------------------------
+			}
+
+			if (maxAlignment <= 0.0f)
+			{
+				std::cout << "Invalid value for max alignment." << std::endl;
+			}
+
+			// Determine the cosine of the refracted ray and normal
+			float cos_a2 = sqrt(1.0f - sin_a2 * sin_a2);
+			if (cos_a1 < 0.0f)
+			{
+				// The polarity of cos_a1 must match the polarity of cos_a2
+				cos_a2 = -cos_a2;
+			}
+
+			// Determine the fraction of the light which is being reflected
+			float sPolarized = PolarizedReflection(fRefractiveIndex, hitObjectMaterial.RefractiveIndex, cos_a1, cos_a2);
+			float pPolarized = PolarizedReflection(fRefractiveIndex, hitObjectMaterial.RefractiveIndex, cos_a2, cos_a1);
+			fReflectionFactor = (sPolarized + pPolarized) * 0.5f;
+		}
+
+		// --------------------------------------------------------------------
 		// Reflection
 
 		// If the hit object is reflective or transparent and we
@@ -540,13 +656,43 @@ void Trace(const Ray& ray, sf::Color& colorAccumulator, Scene& scene, unsigned i
 			if (iReflectionDepth < MAX_REFLECTION_DEPTH)
 			{
 				sf::Color reflectionColor = sf::Color(0, 0, 0, 255);
-				Trace(reflectionRay, reflectionColor, scene, iReflectionDepth + 1);
+				Trace(reflectionRay, 
+					reflectionColor, 
+					scene, 
+					iReflectionDepth + 1,
+					iRefractionDepth + 1,
+					AmbientRefractiveIndex);
 
-				colorAccumulator += sf::Color((sf::Uint8)(reflectionColor.r * hitObjectMaterial.Reflectivity),
-					(sf::Uint8)(reflectionColor.g * hitObjectMaterial.Reflectivity),
-					(sf::Uint8)(reflectionColor.b * hitObjectMaterial.Reflectivity),
+				colorAccumulator += sf::Color((sf::Uint8)(reflectionColor.r * hitObjectMaterial.Reflectivity * fReflectionFactor),
+					(sf::Uint8)(reflectionColor.g * hitObjectMaterial.Reflectivity * fReflectionFactor),
+					(sf::Uint8)(reflectionColor.b * hitObjectMaterial.Reflectivity * fReflectionFactor),
 					255);
 			}
+		}
+
+		// --------------------------------------------------------------------
+
+		// Calculate the refracted ray
+		refractedDirection = glm::normalize(refractedDirection);
+
+		// Calculate the intersection of the refracted ray
+		glm::vec3 startPoint = intersect.IntersectionPoint + refractedDirection * Constants::EPS;
+		Ray refractionRay(startPoint, refractedDirection);
+
+		if (iRefractionDepth < MAX_REFRACTION_DEPTH)
+		{
+			sf::Color refractionColor = sf::Color(0, 0, 0, 255);
+			Trace(refractionRay,
+				refractionColor,
+				scene,
+				iReflectionDepth + 1,
+				iRefractionDepth + 1,
+				AmbientRefractiveIndex);
+
+			colorAccumulator += sf::Color((sf::Uint8)(refractionColor.r * hitObjectMaterial.Transparency * (1.0f - fReflectionFactor)),
+				(sf::Uint8)(refractionColor.g * hitObjectMaterial.Transparency * (1.0f - fReflectionFactor)),
+				(sf::Uint8)(refractionColor.b * hitObjectMaterial.Transparency * (1.0f - fReflectionFactor)),
+				255);
 		}
 
 		// --------------------------------------------------------------------
@@ -690,7 +836,7 @@ void Draw(Scene& scene)
 						Ray camIJRay(pCam->GetCameraPosition(), rayDirection);
 
 						sf::Color surfaceColor = sf::Color(0, 0, 0, 255);
-						Trace(camIJRay, surfaceColor, scene, 0);
+						Trace(camIJRay, surfaceColor, scene, 0, 0, AmbientRefractiveIndex);
 
 						rAcc += surfaceColor.r;
 						gAcc += surfaceColor.g;
@@ -726,7 +872,7 @@ void Draw(Scene& scene)
 				Ray camIJRay(pCam->GetCameraPosition(), rayDirection);
 
 				sf::Color surfaceColor = sf::Color(0, 0, 0, 255);
-				Trace(camIJRay, surfaceColor, scene, 0);
+				Trace(camIJRay, surfaceColor, scene, 0, 0, AmbientRefractiveIndex);
 
 				SetPixelColor(iCurrentPixel, surfaceColor);
 			}
@@ -935,7 +1081,8 @@ int main(int argc, char **argv)
 	sphere2SilverMat.Specular = sf::Color(130, 130, 130, 255);
 	sphere2SilverMat.Shininess = 51.2f;
 	sphere2SilverMat.Reflectivity = 1.0f;
-	sphere2SilverMat.Transparency = 0.0f;
+	sphere2SilverMat.Transparency = 1.0f;
+	sphere2SilverMat.RefractiveIndex = 1.55f;
 
 	Material greenRubberMat;
 	memset(&greenRubberMat, 0, sizeof(Material));
@@ -1345,7 +1492,7 @@ void ProcessLines(int iStartLineIndex, int iEndLineIndex)
 						Ray camIJRay(pCam->GetCameraPosition(), rayDirection);
 
 						sf::Color surfaceColor = sf::Color(0, 0, 0, 255);
-						Trace(camIJRay, surfaceColor, scene, 0);
+						Trace(camIJRay, surfaceColor, scene, 0, 0, AmbientRefractiveIndex);
 
 						rAcc += surfaceColor.r;
 						gAcc += surfaceColor.g;
@@ -1381,7 +1528,7 @@ void ProcessLines(int iStartLineIndex, int iEndLineIndex)
 				Ray camIJRay(pCam->GetCameraPosition(), rayDirection);
 
 				sf::Color surfaceColor = sf::Color(0, 0, 0, 255);
-				Trace(camIJRay, surfaceColor, scene, 0);
+				Trace(camIJRay, surfaceColor, scene, 0, 0, AmbientRefractiveIndex);
 
 				SetPixelColor(iCurrentPixel, surfaceColor);
 			}

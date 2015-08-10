@@ -131,42 +131,6 @@ public:
 						glm::normalize(IntersectionPoint - m_vCenter),
 						this);
 	}
-
-	inline bool SolveQuadratic(const float& a,
-		const float& b,
-		const float& c,
-		float& x0,
-		float& x1)
-	{
-		// Calculate discriminant
-		float delta = b * b - 4.0f * a * c;
-		
-		if (delta < 0)
-		{
-			// No solution found
-			return false;
-		}
-		else if (delta == 0.0f)
-		{
-			x0 = -0.5f * b / a;
-			x1 = x0;
-			return true;
-		}
-		else
-		{
-			float q = (b > 0.0f) ?
-				-0.5f * (b + sqrt(delta)) :
-				-0.5f * (b - sqrt(delta));
-			x0 = q / a;
-			x1 = c / q;
-		}
-		if (x0 > x1)
-		{
-			std::swap(x0, x1);
-		}
-
-		return true;
-	}
 	
 private:
 	vec3 m_vCenter;
