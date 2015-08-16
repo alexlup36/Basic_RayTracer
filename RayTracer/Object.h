@@ -16,6 +16,7 @@ enum ObjectType
 	keSPHERE,
 	keDIRECTIONALLIGHT,
 	kePOINTLIGHT,
+	keAREALIGHT,
 };
 
 // ----------------------------------------------------------------------------

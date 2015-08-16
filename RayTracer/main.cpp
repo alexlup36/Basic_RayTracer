@@ -20,6 +20,7 @@
 #include "Scene.h"
 #include "DirectionalLight.h"
 #include "PointLight.h"
+#include "Triangle.h"
 
 #include "SFML/Window.hpp"
 #include "SFML/Graphics.hpp"
@@ -94,6 +95,8 @@ std::vector<DirectionalLight*> dirLightSources;
 std::vector<PointLight*> pointLightSources;
 std::shared_ptr<Camera> pCam;
 sf::Uint8* pixels = new sf::Uint8[iWidth * iHeight * 4];
+
+AreaLight areaLight("SquareAreaLight");
 
 // -----------------------------------------------------------------------------
 
@@ -398,7 +401,8 @@ void Trace(const Ray& ray,
 
 		// Check if we hit a light source
 		if (intersect.HitObject->Type() == ObjectType::keDIRECTIONALLIGHT ||
-			intersect.HitObject->Type() == ObjectType::kePOINTLIGHT)
+			intersect.HitObject->Type() == ObjectType::kePOINTLIGHT ||
+			intersect.HitObject->Type() == ObjectType::keAREALIGHT)
 		{
 			colorAccumulator = sf::Color(255, 255, 255, 255);
 			return;
@@ -413,111 +417,189 @@ void Trace(const Ray& ray,
 		// Procedural plane texturing
 
 		// Object type plane hit => square pattern texturing
-		if (intersect.HitObject->Type() == ObjectType::kePLANE)
-		{
-			// Get the intersection point between the ray and the plane
-			int intersectionX = (int)floor(intersect.IntersectionPoint.x);
-			int intersectionZ = (int)floor(intersect.IntersectionPoint.z);
+		//if (intersect.HitObject->Type() == ObjectType::kePLANE)
+		//{
+		//	// Get the intersection point between the ray and the plane
+		//	int intersectionX = (int)floor(intersect.IntersectionPoint.x);
+		//	int intersectionZ = (int)floor(intersect.IntersectionPoint.z);
 
-			int xSquareCoordinate = 0;
-			int ySquareCoordinate = 0;
+		//	int xSquareCoordinate = 0;
+		//	int ySquareCoordinate = 0;
 
-			// Calculate the coordinates of the square where the intersection occurred
-			CalculateSquareCoord(intersectionX, intersectionZ, xSquareCoordinate, ySquareCoordinate);
+		//	// Calculate the coordinates of the square where the intersection occurred
+		//	CalculateSquareCoord(intersectionX, intersectionZ, xSquareCoordinate, ySquareCoordinate);
 
-			if ((abs(xSquareCoordinate) + abs(ySquareCoordinate)) % 2 == 0)
-			{
-				hitObjectMaterial.Diffuse = sf::Color(0, 0, 0, 255);
-			}
-			else
-			{
-				hitObjectMaterial.Diffuse = sf::Color(255, 255, 255, 255);
-			}
-		}
+		//	if ((abs(xSquareCoordinate) + abs(ySquareCoordinate)) % 2 == 0)
+		//	{
+		//		hitObjectMaterial.Diffuse = sf::Color(0, 0, 0, 255);
+		//	}
+		//	else
+		//	{
+		//		hitObjectMaterial.Diffuse = sf::Color(255, 255, 255, 255);
+		//	}
+		//}
 
 		// --------------------------------------------------------------------
 		// Shadows
 
-		float fShade = 1.0f;
+		float fShade = 0.0f;
 
 		if (intersect.HitObject != NULL)
 		{
 			// Calculate the shadow ray for each light source in the scene
 
 			// Go through all directional light sources and calculate the shadow rays
-			for (unsigned int lightIndex = 0; lightIndex < dirLightSources.size(); lightIndex++)
+			//for (unsigned int lightIndex = 0; lightIndex < dirLightSources.size(); lightIndex++)
+			//{
+			//	// Get the current light source
+			//	DirectionalLight& currentLight = *dirLightSources[lightIndex];
+
+			//	// Calculate the intersection of the reflected ray
+			//	glm::vec3 lightDirection = glm::normalize(currentLight.Direction);
+			//	glm::vec3 startPoint = intersect.IntersectionPoint + lightDirection * Constants::EPS;
+			//	
+			//	Ray shadowRay(startPoint, lightDirection);
+
+			//	// Get the object list
+			//	std::vector<Object*>& objectList = scene.ObjectList();
+
+			//	// Check all objects in the scene for intersection against the shadow ray
+			//	for (Object* obj : objectList)
+			//	{
+			//		// Don't check for intersections against light sources
+			//		if (obj->Type() == ObjectType::kePOINTLIGHT ||
+			//			obj->Type() == ObjectType::keDIRECTIONALLIGHT ||
+			//			obj->Type() == ObjectType::keAREALIGHT)
+			//		{
+			//			continue;
+			//		}
+
+			//		if (obj->GetIndex() != intersect.HitObject->GetIndex())
+			//		{
+			//			IntersectionInfo intersection = obj->FindIntersection(shadowRay);
+			//			if (intersection.HitObject != NULL)
+			//			{
+			//				if (intersection.HitObject->Type() != ObjectType::kePOINTLIGHT &&
+			//					intersection.HitObject->Type() != ObjectType::keDIRECTIONALLIGHT &&
+			//					intersection.HitObject->Type() != ObjectType::keAREALIGHT)
+			//				{
+			//					fShade = 0.0f;
+			//					break;
+			//				}
+			//			}
+			//		}
+			//	}
+			//}
+
+			//// Go through all the point lights in the scene
+			//for (unsigned int lightIndex = 0; lightIndex < pointLightSources.size(); lightIndex++)
+			//{
+			//	// Get the current light source
+			//	PointLight& currentLight = *pointLightSources[lightIndex];
+
+			//	// Calculate the intersection of the reflected ray
+			//	glm::vec3 lightVector = currentLight.Position - intersect.IntersectionPoint;
+			//	float distance = glm::length(lightVector);
+			//	glm::vec3 lightDirection = glm::normalize(lightVector);
+			//	glm::vec3 startPoint = intersect.IntersectionPoint + lightDirection * Constants::EPS;
+			//	Ray shadowRay(startPoint, lightDirection);
+
+			//	// Get the object list
+			//	std::vector<Object*>& objectList = scene.ObjectList();
+
+			//	// Check all objects in the scene for intersection against the shadow ray
+			//	for (Object* obj : objectList)
+			//	{
+			//		// Don't check for intersections against light sources
+			//		if (obj->Type() == ObjectType::kePOINTLIGHT ||
+			//			obj->Type() == ObjectType::keDIRECTIONALLIGHT ||
+			//			obj->Type() == ObjectType::keAREALIGHT)
+			//		{
+			//			continue;
+			//		}
+
+			//		if (obj->GetIndex() != intersect.HitObject->GetIndex())
+			//		{
+			//			IntersectionInfo intersection = obj->FindIntersection(shadowRay);
+			//			if (intersection.RayLength <= distance && intersection.HitObject != NULL)
+			//			{
+			//				if (intersection.HitObject->Type() != ObjectType::kePOINTLIGHT &&
+			//					intersection.HitObject->Type() != ObjectType::keDIRECTIONALLIGHT &&
+			//					intersection.HitObject->Type() != ObjectType::keAREALIGHT)
+			//				{
+			//					fShade = 0.0f;
+			//					break;
+			//				}
+			//			}
+			//		}
+			//	}
+			//}
+
+			// Check the area light source
+			unsigned int sampleCountX = areaLight.GetSampleCountX();
+			unsigned int sampleCountZ = areaLight.GetSampleCountZ();
+			float sampleSizeX = areaLight.GetSampleSizeX();
+			float sampleSizeZ = areaLight.GetSampleSizeZ();
+
+			for (unsigned int row = 0; row < sampleCountZ; row++)
 			{
-				// Get the current light source
-				DirectionalLight& currentLight = *dirLightSources[lightIndex];
-
-				// Calculate the intersection of the reflected ray
-				glm::vec3 lightDirection = glm::normalize(currentLight.Direction);
-				glm::vec3 startPoint = intersect.IntersectionPoint + lightDirection * Constants::EPS;
-				
-				Ray shadowRay(startPoint, lightDirection);
-
-				// Get the object list
-				std::vector<Object*>& objectList = scene.ObjectList();
-
-				// Check all objects in the scene for intersection against the shadow ray
-				for (Object* obj : objectList)
+				for (unsigned int col = 0; col < sampleCountX; col++)
 				{
-					if (obj->GetIndex() != currentLight.GetIndex())
+					// Find the current position for the current sample rectangle
+					float currentX = areaLight.GetPosition().x + col * sampleSizeX;
+					float currentZ = areaLight.GetPosition().y + row * sampleSizeZ;
+
+					// Generate a random offset within the current sample square
+					float xOffset = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / sampleSizeX));
+					float zOffset = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / sampleSizeZ));
+
+					// Calculate the position of the next sample
+					glm::vec3 currentSamplePoint = glm::vec3(currentX + xOffset, 
+						areaLight.GetPosition().y,
+						currentZ + zOffset);
+
+					// Calculate the direction to the intersection point
+					glm::vec3 shadowVector = currentSamplePoint - intersect.IntersectionPoint;
+					float distance = glm::length(shadowVector);
+					glm::vec3 lightDirection = glm::normalize(shadowVector);
+					glm::vec3 startPoint = intersect.IntersectionPoint + lightDirection * Constants::EPS;
+					Ray shadowRay(startPoint, lightDirection);
+
+					// Get the object list
+					std::vector<Object*>& objectList = scene.ObjectList();
+
+					// Check all objects in the scene for intersection against the shadow ray
+					for (Object* obj : objectList)
 					{
-						IntersectionInfo intersection = obj->FindIntersection(shadowRay);
-						if (intersection.HitObject != NULL)
+						// Don't check for intersections against light sources
+						if (obj->Type() == ObjectType::kePOINTLIGHT ||
+							obj->Type() == ObjectType::keDIRECTIONALLIGHT ||
+							obj->Type() == ObjectType::keAREALIGHT)
 						{
-							if (intersection.HitObject->Type() != ObjectType::kePOINTLIGHT &&
-								intersection.HitObject->Type() != ObjectType::keDIRECTIONALLIGHT)
+							continue;
+						}
+
+						if (obj->GetIndex() != intersect.HitObject->GetIndex())
+						{
+							IntersectionInfo intersection = obj->FindIntersection(shadowRay);
+							if (intersection.RayLength <= distance && intersection.HitObject != NULL)
 							{
-								fShade = 0.0f;
-								break;
+								if (intersection.HitObject->Type() != ObjectType::kePOINTLIGHT &&
+									intersection.HitObject->Type() != ObjectType::keDIRECTIONALLIGHT &&
+									intersection.HitObject->Type() != ObjectType::keAREALIGHT)
+								{
+									fShade += areaLight.GetSampleScale();
+									break;
+								}
 							}
 						}
 					}
 				}
 			}
 
-			// Go through all the point lights in the scene
-			for (unsigned int lightIndex = 0; lightIndex < pointLightSources.size(); lightIndex++)
+			if (fShade == 0.0f)
 			{
-				// Get the current light source
-				PointLight& currentLight = *pointLightSources[lightIndex];
-
-				// Calculate the intersection of the reflected ray
-				glm::vec3 lightVector = currentLight.Position - intersect.IntersectionPoint;
-				float distance = glm::length(lightVector);
-				glm::vec3 lightDirection = glm::normalize(lightVector);
-				glm::vec3 startPoint = intersect.IntersectionPoint + lightDirection * Constants::EPS;
-				Ray shadowRay(startPoint, lightDirection);
-
-				// Get the object list
-				std::vector<Object*>& objectList = scene.ObjectList();
-
-				// Check all objects in the scene for intersection against the shadow ray
-				for (Object* obj : objectList)
-				{
-					// Don't check for intersections against light sources
-					if (obj->Type() == ObjectType::kePOINTLIGHT ||
-						obj->Type() == ObjectType::keDIRECTIONALLIGHT)
-					{
-						continue;
-					}
-
-					IntersectionInfo intersection = obj->FindIntersection(shadowRay);
-					if (intersection.RayLength < distance)
-					{
-						if (intersection.HitObject != NULL)
-						{
-							if (intersection.HitObject->Type() != ObjectType::kePOINTLIGHT &&
-								intersection.HitObject->Type() != ObjectType::keDIRECTIONALLIGHT)
-							{
-								fShade = 0.0f;
-								break;
-							}
-						}
-					}
-				}
+				fShade = 1.0f;
 			}
 		}
 
@@ -530,170 +612,172 @@ void Trace(const Ray& ray,
 		// --------------------------------------------------------------------
 		// Refraction
 
-		// Calculate the direction of the refracted ray
-		glm::vec3 refractedDirection = glm::vec3(0.0f);
+		//// Calculate the direction of the refracted ray
+		//glm::vec3 refractedDirection = glm::vec3(0.0f);
 
-		glm::vec3 direction = glm::normalize(ray.GetDirection());
-		float cos_a1 = glm::dot(direction, intersect.NormalAtIntersection);
-		float sin_a1 = 0.0f;
+		//glm::vec3 direction = glm::normalize(ray.GetDirection());
+		//float cos_a1 = glm::dot(direction, intersect.NormalAtIntersection);
+		//float sin_a1 = 0.0f;
 
-		if (cos_a1 <= -1.0f)
-		{
-			if (cos_a1 < -1.0001f)
-			{
-				std::cout << "Dot product too small." << std::endl;
-			}
-			cos_a1 = -1.0f;
-			sin_a1 = 0.0f;
-		}
-		else if (cos_a1 >= 1.0f)
-		{
-			if (cos_a1 > 1.0001f)
-			{
-				std::cout << "Dot product too large." << std::endl;
-			}
-			cos_a1 = 1.0f;
-			sin_a1 = 0.0f;
-		}
-		else
-		{
-			sin_a1 = sqrt(1.0f - cos_a1 * cos_a1);
-		}
+		//if (cos_a1 <= -1.0f)
+		//{
+		//	if (cos_a1 < -1.0001f)
+		//	{
+		//		std::cout << "Dot product too small." << std::endl;
+		//	}
+		//	cos_a1 = -1.0f;
+		//	sin_a1 = 0.0f;
+		//}
+		//else if (cos_a1 >= 1.0f)
+		//{
+		//	if (cos_a1 > 1.0001f)
+		//	{
+		//		std::cout << "Dot product too large." << std::endl;
+		//	}
+		//	cos_a1 = 1.0f;
+		//	sin_a1 = 0.0f;
+		//}
+		//else
+		//{
+		//	sin_a1 = sqrt(1.0f - cos_a1 * cos_a1);
+		//}
 
-		// Calculate the ratio of the two refractive indices
-		const float ratio = fRefractiveIndex / hitObjectMaterial.RefractiveIndex;
+		//// Calculate the ratio of the two refractive indices
+		//const float ratio = fRefractiveIndex / hitObjectMaterial.RefractiveIndex;
 
-		// Use Snell's law to calculate the sine of the refracted ray and normal
-		const float sin_a2 = ratio * sin_a1;
+		//// Use Snell's law to calculate the sine of the refracted ray and normal
+		//const float sin_a2 = ratio * sin_a1;
 
-		// Reflection factor
-		float fReflectionFactor = 0.0f;
+		//// Reflection factor
+		//float fReflectionFactor = 0.0f;
 
-		if (sin_a2 <= -1.0f || sin_a2 >= 1.0f)
-		{
-			// There is no refraction, only reflection
-			fReflectionFactor = 1.0f;
-		}
-		else
-		{
-			// Solve quadratic for k
-			float x1, x2;
+		//if (sin_a2 <= -1.0f || sin_a2 >= 1.0f)
+		//{
+		//	// There is no refraction, only reflection
+		//	fReflectionFactor = 1.0f;
+		//}
+		//else
+		//{
+		//	// Solve quadratic for k
+		//	float x1, x2;
 
-			float a = 1.0f;
-			float b = 2.0f * cos_a1;
-			float c = 1.0f - 1.0f / (ratio * ratio);
+		//	float a = 1.0f;
+		//	float b = 2.0f * cos_a1;
+		//	float c = 1.0f - 1.0f / (ratio * ratio);
 
-			float maxAlignment = -0.0001f;
+		//	float maxAlignment = -0.0001f;
 
-			if (SolveQuadratic(a, b, c, x1, x2) == true)
-			{
-				// Solution was found => find the correct one and exclude the ghost one
-				
-				// ---------------------------------------------------------------------
-				// Calculate the direction of the refracted ray using the first solution
+		//	if (SolveQuadratic(a, b, c, x1, x2) == true)
+		//	{
+		//		// Solution was found => find the correct one and exclude the ghost one
+		//		
+		//		// ---------------------------------------------------------------------
+		//		// Calculate the direction of the refracted ray using the first solution
 
-				// Calculate the candidate for the refractive ray direction
-				glm::vec3 refractCandidate = direction + x1 * intersect.NormalAtIntersection;
+		//		// Calculate the candidate for the refractive ray direction
+		//		glm::vec3 refractCandidate = direction + x1 * intersect.NormalAtIntersection;
 
-				// Calculate the angle between the incident and refracted ray
-				float alignment = glm::dot(direction, refractCandidate);
-				if (alignment > maxAlignment)
-				{
-					maxAlignment = alignment;
-					refractedDirection = refractCandidate;
-				}
+		//		// Calculate the angle between the incident and refracted ray
+		//		float alignment = glm::dot(direction, refractCandidate);
+		//		if (alignment > maxAlignment)
+		//		{
+		//			maxAlignment = alignment;
+		//			refractedDirection = refractCandidate;
+		//		}
 
-				// ---------------------------------------------------------------------
-				// Calculate the direction of the refracted ray using the second solution
+		//		// ---------------------------------------------------------------------
+		//		// Calculate the direction of the refracted ray using the second solution
 
-				refractCandidate = direction + x2 * intersect.NormalAtIntersection;
-				alignment = glm::dot(direction, refractCandidate);
-				if (alignment > maxAlignment)
-				{
-					maxAlignment = alignment;
-					refractedDirection = refractCandidate;
-				}
+		//		refractCandidate = direction + x2 * intersect.NormalAtIntersection;
+		//		alignment = glm::dot(direction, refractCandidate);
+		//		if (alignment > maxAlignment)
+		//		{
+		//			maxAlignment = alignment;
+		//			refractedDirection = refractCandidate;
+		//		}
 
-				// ---------------------------------------------------------------------
-			}
+		//		// ---------------------------------------------------------------------
+		//	}
 
-			if (maxAlignment <= 0.0f)
-			{
-				std::cout << "Invalid value for max alignment." << std::endl;
-			}
+		//	if (maxAlignment <= 0.0f)
+		//	{
+		//		std::cout << "Invalid value for max alignment." << std::endl;
+		//	}
 
-			// Determine the cosine of the refracted ray and normal
-			float cos_a2 = sqrt(1.0f - sin_a2 * sin_a2);
-			if (cos_a1 < 0.0f)
-			{
-				// The polarity of cos_a1 must match the polarity of cos_a2
-				cos_a2 = -cos_a2;
-			}
+		//	// Determine the cosine of the refracted ray and normal
+		//	float cos_a2 = sqrt(1.0f - sin_a2 * sin_a2);
+		//	if (cos_a1 < 0.0f)
+		//	{
+		//		// The polarity of cos_a1 must match the polarity of cos_a2
+		//		cos_a2 = -cos_a2;
+		//	}
 
-			// Determine the fraction of the light which is being reflected
-			float sPolarized = PolarizedReflection(fRefractiveIndex, hitObjectMaterial.RefractiveIndex, cos_a1, cos_a2);
-			float pPolarized = PolarizedReflection(fRefractiveIndex, hitObjectMaterial.RefractiveIndex, cos_a2, cos_a1);
-			fReflectionFactor = (sPolarized + pPolarized) * 0.5f;
-		}
+		//	// Determine the fraction of the light which is being reflected
+		//	float sPolarized = PolarizedReflection(fRefractiveIndex, hitObjectMaterial.RefractiveIndex, cos_a1, cos_a2);
+		//	float pPolarized = PolarizedReflection(fRefractiveIndex, hitObjectMaterial.RefractiveIndex, cos_a2, cos_a1);
+		//	fReflectionFactor = (sPolarized + pPolarized) * 0.5f;
+		//}
 
 		// --------------------------------------------------------------------
 		// Reflection
 
 		// If the hit object is reflective or transparent and we
 		// haven't reached max reflection depth
-		if (hitObjectMaterial.Reflectivity > 0 ||
-			hitObjectMaterial.Transparency > 0)
-		{
-			// Go through all the point lights in the scene
-			
-			// Calculate the reflected ray
-			vec3 reflectionDirection = glm::normalize(glm::reflect<vec3>(ray.GetDirection(), intersect.NormalAtIntersection));
+		//if (hitObjectMaterial.Reflectivity > 0)
+		//{
+		//	// Go through all the point lights in the scene
+		//	
+		//	// Calculate the reflected ray
+		//	vec3 reflectionDirection = glm::normalize(glm::reflect<vec3>(ray.GetDirection(), intersect.NormalAtIntersection));
 
-			// Calculate the intersection of the reflected ray
-			glm::vec3 startPoint = intersect.IntersectionPoint + reflectionDirection * Constants::EPS;
-			Ray reflectionRay(startPoint, reflectionDirection);
+		//	// Calculate the intersection of the reflected ray
+		//	glm::vec3 startPoint = intersect.IntersectionPoint + reflectionDirection * Constants::EPS;
+		//	Ray reflectionRay(startPoint, reflectionDirection);
 
-			if (iReflectionDepth < MAX_REFLECTION_DEPTH)
-			{
-				sf::Color reflectionColor = sf::Color(0, 0, 0, 255);
-				Trace(reflectionRay, 
-					reflectionColor, 
-					scene, 
-					iReflectionDepth + 1,
-					iRefractionDepth + 1,
-					AmbientRefractiveIndex);
+		//	if (iReflectionDepth < MAX_REFLECTION_DEPTH)
+		//	{
+		//		sf::Color reflectionColor = sf::Color(0, 0, 0, 255);
+		//		Trace(reflectionRay, 
+		//			reflectionColor, 
+		//			scene, 
+		//			iReflectionDepth + 1,
+		//			iRefractionDepth + 1,
+		//			AmbientRefractiveIndex);
 
-				colorAccumulator += sf::Color((sf::Uint8)(reflectionColor.r * hitObjectMaterial.Reflectivity * fReflectionFactor),
-					(sf::Uint8)(reflectionColor.g * hitObjectMaterial.Reflectivity * fReflectionFactor),
-					(sf::Uint8)(reflectionColor.b * hitObjectMaterial.Reflectivity * fReflectionFactor),
-					255);
-			}
-		}
+		//		colorAccumulator += sf::Color((sf::Uint8)(reflectionColor.r * hitObjectMaterial.Reflectivity * fReflectionFactor),
+		//			(sf::Uint8)(reflectionColor.g * hitObjectMaterial.Reflectivity * fReflectionFactor),
+		//			(sf::Uint8)(reflectionColor.b * hitObjectMaterial.Reflectivity * fReflectionFactor),
+		//			255);
+		//	}
+		//}
 
 		// --------------------------------------------------------------------
 
-		// Calculate the refracted ray
-		refractedDirection = glm::normalize(refractedDirection);
+		//if (hitObjectMaterial.Transparency > 0)
+		//{
+		//	// Calculate the refracted ray
+		//	refractedDirection = glm::normalize(refractedDirection);
 
-		// Calculate the intersection of the refracted ray
-		glm::vec3 startPoint = intersect.IntersectionPoint + refractedDirection * Constants::EPS;
-		Ray refractionRay(startPoint, refractedDirection);
+		//	// Calculate the intersection of the refracted ray
+		//	glm::vec3 startPoint = intersect.IntersectionPoint + refractedDirection * Constants::EPS;
+		//	Ray refractionRay(startPoint, refractedDirection);
 
-		if (iRefractionDepth < MAX_REFRACTION_DEPTH)
-		{
-			sf::Color refractionColor = sf::Color(0, 0, 0, 255);
-			Trace(refractionRay,
-				refractionColor,
-				scene,
-				iReflectionDepth + 1,
-				iRefractionDepth + 1,
-				AmbientRefractiveIndex);
+		//	if (iRefractionDepth < MAX_REFRACTION_DEPTH)
+		//	{
+		//		sf::Color refractionColor = sf::Color(0, 0, 0, 255);
+		//		Trace(refractionRay,
+		//			refractionColor,
+		//			scene,
+		//			iReflectionDepth + 1,
+		//			iRefractionDepth + 1,
+		//			AmbientRefractiveIndex);
 
-			colorAccumulator += sf::Color((sf::Uint8)(refractionColor.r * hitObjectMaterial.Transparency * (1.0f - fReflectionFactor)),
-				(sf::Uint8)(refractionColor.g * hitObjectMaterial.Transparency * (1.0f - fReflectionFactor)),
-				(sf::Uint8)(refractionColor.b * hitObjectMaterial.Transparency * (1.0f - fReflectionFactor)),
-				255);
-		}
+		//		colorAccumulator += sf::Color((sf::Uint8)(refractionColor.r * /*hitObjectMaterial.Transparency * */(1.0f - fReflectionFactor)),
+		//			(sf::Uint8)(refractionColor.g * /*hitObjectMaterial.Transparency * */(1.0f - fReflectionFactor)),
+		//			(sf::Uint8)(refractionColor.b * /*hitObjectMaterial.Transparency * */(1.0f - fReflectionFactor)),
+		//			255);
+		//	}
+		//}
 
 		// --------------------------------------------------------------------
 	}
@@ -1050,10 +1134,20 @@ int main(int argc, char **argv)
 		2.0f,
 		"PointLightRed");
 
-	dirLightSources.push_back(&dirLight);
+	//dirLightSources.push_back(&dirLight);
 	pointLightSources.push_back(&pointLight1);
 	//pointLightSources.push_back(&pointLight2);
 	//pointLightSources.push_back(&pointLight3);
+
+	Triangle triangle1(glm::vec3(0.0f, -10.0f, 0.0f),
+		glm::vec3(3.0f, -10.0f, 0.0f),
+		glm::vec3(0.0f, -10.0f, 3.0f));
+	Triangle triangle2(glm::vec3(0.0f, -10.0f, 3.0f),
+		glm::vec3(3.0f, -10.0f, 0.0f),
+		glm::vec3(3.0f, -10.0f, 3.0f));
+
+	areaLight.AddTriangle(triangle1);
+	areaLight.AddTriangle(triangle2);
 
 	// ------------------------------------------------------------------------
 
@@ -1062,8 +1156,9 @@ int main(int argc, char **argv)
 	// ------------------------------------------------------------------------
 	// Scene
 
-	scene.AddObject(&dirLight);
+	//scene.AddObject(&dirLight);
 	scene.AddObject(&pointLight1);
+	scene.AddObject(&areaLight);
 
 	Material sphere1CopperMat;
 	memset(&sphere1CopperMat, 0, sizeof(Material));
@@ -1114,7 +1209,7 @@ int main(int argc, char **argv)
 	std::shared_ptr<Plane> pPlaneBack = std::make_shared<Plane>(Normal(0.0f, 0.0f, 1.0f), Point(0.0f, 0.0f, 10.0f));
 
 	scene.AddObject(pSphere.get());
-	scene.AddObject(pSphere2.get());
+	//scene.AddObject(pSphere2.get());
 	//scene.AddObject(pSphere3.get());
 	scene.AddObject(pPlaneBottom.get());
 	//scene.AddObject(pPlaneLeft.get());
