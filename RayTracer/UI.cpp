@@ -255,6 +255,8 @@ void UI::LoadUIElements()
 	objectTypeSelectionComboBox->addItem("Directional Light");
 	objectTypeSelectionComboBox->addItem("Point Light");
 	objectTypeSelectionComboBox->addItem("Sphere");
+	objectTypeSelectionComboBox->addItem("Area Light");
+	objectTypeSelectionComboBox->addItem("Box");
 	objectTypeSelectionComboBox->setSelectedItem(0);
 
 	// Add object to scene button
@@ -407,10 +409,7 @@ void UI::Update()
 
 		if (pSelectedObject != NULL)
 		{
-			if (pSelectedObject->Type() != ObjectType::keAREALIGHT)
-			{
-				pSelectedObject->SetPosition(glm::vec3(xPos / 50.0f, yPos / 50.0f, zPos / 50.0f));
-			}
+			pSelectedObject->SetPosition(glm::vec3(xPos / 50.0f, yPos / 50.0f, zPos / 50.0f));
 		}
 	}
 }
@@ -565,6 +564,18 @@ void UI::addObjectCallback(const tgui::Callback& callback)
 		case ObjectToAdd::SphereObj:
 		{
 			m_pScene->AddObject(new Sphere());
+			break;
+		}
+
+		case ObjectToAdd::AreaLightObj:
+		{
+			m_pScene->AddObject(new AreaLight());
+			break;
+		}
+
+		case ObjectToAdd::BoxObj:
+		{
+			m_pScene->AddObject(new Box());
 			break;
 		}
 		

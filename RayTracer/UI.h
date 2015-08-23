@@ -69,6 +69,8 @@ private:
 		DirectionalLightObj,
 		PointLightObj,
 		SphereObj,
+		AreaLightObj,
+		BoxObj,
 
 		InvalidObjectType,
 	};

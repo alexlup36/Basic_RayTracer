@@ -154,6 +154,7 @@ xcopy /Y "$(SolutionDir)Lib\sfml\bin\x64\sfml-window-2.dll" "$(SolutionDir)x64\R
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="AreaLight.h" />
     <ClInclude Include="Box.h" />
     <ClInclude Include="Camera.h" />
     <ClInclude Include="Common.h" />

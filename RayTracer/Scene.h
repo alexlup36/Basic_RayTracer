@@ -8,6 +8,7 @@
 #include "PointLight.h"
 #include "DirectionalLight.h"
 #include "Triangle.h"
+#include "AreaLight.h"
 
 class Scene
 {

@@ -36,7 +36,7 @@
 #include <thread>
 #include <mutex>
 #include <condition_variable>
-//#define MULTITHREADING
+#define MULTITHREADING
 
 #ifdef MULTITHREADING
 #include <boost/threadpool.hpp>
@@ -107,7 +107,7 @@ void Update(float dt);
 void UpdateInput(glm::vec3& moveVector);
 
 IntersectionInfo RaySceneIntersection(const Ray& ray, Scene& scene);
-sf::Color FindColor(const IntersectionInfo& intersect, const Material& hitObjectMaterial, Scene& scene, float fShade);
+sf::Color FindColor(const IntersectionInfo& intersect, const Material& hitObjectMaterial, Scene& scene, float fShade, float fSoftShade);
 void CalculateSquareCoord(int intersectionX, int intersectionZ, int& coordX, int& coordZ);
 
 // -----------------------------------------------------------------------------
@@ -203,10 +203,10 @@ sf::Color PhongLighting(PointLight& currentLight,
 		glm::vec3 lightVector = currentLight.Position - position;
 		// Calculate the distance from the point light to the pixel position
 		float distance = glm::length(lightVector);
-		// Calculate the attenuation factor
-		float attenuation = 1.0f / (currentLight.ConstantAttenuation +
-			currentLight.LinearAttenuation * distance +
-			currentLight.QuadraticAttenuation * (distance * distance));
+		//// Calculate the attenuation factor
+		//float attenuation = 1.0f / (currentLight.ConstantAttenuation +
+		//	currentLight.LinearAttenuation * distance +
+		//	currentLight.QuadraticAttenuation * (distance * distance));
 		glm::vec3 lightDirection = glm::normalize(lightVector);
 		float fNormalDotLight = glm::dot(normal, lightDirection);
 		if (fNormalDotLight > 0.0f)
@@ -229,6 +229,81 @@ sf::Color PhongLighting(PointLight& currentLight,
 
 		// Return the final color
 		return (ambientComponent + diffuseComponent + specularComponent);// *attenuation;
+	}
+}
+
+// -----------------------------------------------------------------------------
+
+sf::Color PhongLighting(AreaLight& currentLight,
+	const Material& material,
+	const glm::vec3& position,
+	const glm::vec3& normal,
+	float fShade)
+{
+	float rAcc = 0.0;
+	float gAcc = 0.0f;
+	float bAcc = 0.0f;
+	float aAcc = 0.0f;
+
+	const std::vector<glm::vec3>& sampleLocations = currentLight.GetSampleLocations();
+
+	// Ambient component
+	sf::Color ambientComponent = currentLight.AmbientLight * material.Ambient;
+
+	if (fShade == 0.0f)
+	{
+		// Return the final color
+		return ambientComponent;
+	}
+	else
+	{
+		for (unsigned int sampleLocationIndex = 0; sampleLocationIndex < sampleLocations.size(); sampleLocationIndex++)
+		{
+			sf::Color diffuseComponent, specularComponent;
+
+			// Diffuse component
+
+			// Calculate the light vector
+			glm::vec3 lightVector = sampleLocations[sampleLocationIndex] - position;
+			// Calculate the distance from the point light to the pixel position
+			float distance = glm::length(lightVector);
+
+			glm::vec3 lightDirection = glm::normalize(lightVector);
+			float fNormalDotLight = glm::dot(normal, lightDirection);
+			if (fNormalDotLight > 0.0f)
+			{
+				sf::Color diffuseResult = material.Diffuse * currentLight.DiffuseLight;
+
+				diffuseComponent = sf::Color((sf::Uint8)(diffuseResult.r * fNormalDotLight * fShade),
+					(sf::Uint8)(diffuseResult.g * fNormalDotLight * fShade),
+					(sf::Uint8)(diffuseResult.b * fNormalDotLight * fShade));
+			}
+
+			// Specular component
+			vec3& viewDirection = glm::normalize(pCam->GetCameraPosition() - position);
+			vec3& reflectionDirection = glm::reflect<vec3>(-lightDirection, normal);
+			float specular = std::pow(std::max(glm::dot(viewDirection, reflectionDirection), 0.0f), material.Shininess) * fShade;
+			sf::Color specularResult = material.Specular * currentLight.SpecularLight;
+			specularComponent = sf::Color((sf::Uint8)(specularResult.r * specular),
+				(sf::Uint8)(specularResult.g * specular),
+				(sf::Uint8)(specularResult.b * specular));
+
+			rAcc += (float)(ambientComponent.r + diffuseComponent.r + specularComponent.r);
+			gAcc += (float)(ambientComponent.g + diffuseComponent.g + specularComponent.g);
+			bAcc += (float)(ambientComponent.b + diffuseComponent.b + specularComponent.b);
+			aAcc += (float)(ambientComponent.a + diffuseComponent.a + specularComponent.a);
+		}
+
+		float r = glm::clamp(rAcc / sampleLocations.size(), 0.0f, 255.0f);
+		float g = glm::clamp(gAcc / sampleLocations.size(), 0.0f, 255.0f);
+		float b = glm::clamp(bAcc / sampleLocations.size(), 0.0f, 255.0f);
+		float a = glm::clamp(aAcc / sampleLocations.size(), 0.0f, 255.0f);
+
+		// Return the final color
+		return sf::Color((sf::Uint8)r,
+			(sf::Uint8)g,
+			(sf::Uint8)b,
+			(sf::Uint8)a);
 	}
 }
 
@@ -299,9 +374,9 @@ sf::Color BlinnPhongLighting(PointLight& currentLight,
 		// Calculate the distance from the point light to the pixel position
 		float distance = glm::length(lightVector);
 		// Calculate the attenuation factor
-		float attenuation = 1.0f / (currentLight.ConstantAttenuation +
-			currentLight.LinearAttenuation * distance +
-			currentLight.QuadraticAttenuation * (distance * distance));
+		//float attenuation = 1.0f / (currentLight.ConstantAttenuation +
+		//	currentLight.LinearAttenuation * distance +
+		//	currentLight.QuadraticAttenuation * (distance * distance));
 		glm::vec3 lightDirection = glm::normalize(lightVector);
 		float fNormalDotLight = glm::max(glm::dot(normal, lightDirection), 0.0f);
 		sf::Color diffuseResult = material.Diffuse * currentLight.DiffuseLight;
@@ -320,6 +395,74 @@ sf::Color BlinnPhongLighting(PointLight& currentLight,
 
 		// Return the final color
 		return (ambientComponent + diffuseComponent + specularComponent);// *attenuation;
+	}
+}
+
+// -----------------------------------------------------------------------------
+
+sf::Color BlinnPhongLighting(AreaLight& currentLight,
+	const Material& material,
+	const glm::vec3& position,
+	const glm::vec3& normal,
+	float fShade)
+{
+	float rAcc = 0.0;
+	float gAcc = 0.0f;
+	float bAcc = 0.0f;
+	float aAcc = 0.0f;
+
+	const std::vector<glm::vec3>& sampleLocations = currentLight.GetSampleLocations();
+
+	// Ambient component
+	sf::Color ambientComponent = currentLight.AmbientLight * material.Ambient;
+
+	if (fShade == 0.0f)
+	{
+		// Return the final color
+		return ambientComponent;
+	}
+	else
+	{
+		for (unsigned int sampleLocationIndex = 0; sampleLocationIndex < sampleLocations.size(); sampleLocationIndex++)
+		{
+			sf::Color diffuseComponent, specularComponent;
+
+			// Diffuse component
+			glm::vec3 lightVector = sampleLocations[sampleLocationIndex] - position;
+			// Calculate the distance from the point light to the pixel position
+			float distance = glm::length(lightVector);
+			glm::vec3 lightDirection = glm::normalize(lightVector);
+			float fNormalDotLight = glm::max(glm::dot(normal, lightDirection), 0.0f);
+			sf::Color diffuseResult = material.Diffuse * currentLight.DiffuseLight;
+			diffuseComponent = sf::Color((sf::Uint8)(diffuseResult.r * fNormalDotLight * fShade),
+				(sf::Uint8)(diffuseResult.g * fNormalDotLight * fShade),
+				(sf::Uint8)(diffuseResult.b * fNormalDotLight * fShade));
+
+			// Specular component
+			vec3& viewDirection = glm::normalize(pCam->GetCameraPosition() - position);
+			vec3& halfVector = glm::normalize(lightDirection + viewDirection);
+			float specular = std::pow(std::max(glm::dot(normal, halfVector), 0.0f), material.Shininess) * fShade;
+			sf::Color specularResult = material.Specular * currentLight.SpecularLight;
+			specularComponent = sf::Color((sf::Uint8)(specularResult.r * specular),
+				(sf::Uint8)(specularResult.g * specular),
+				(sf::Uint8)(specularResult.b * specular));
+
+			rAcc += (float)(ambientComponent.r + diffuseComponent.r + specularComponent.r);
+			gAcc += (float)(ambientComponent.g + diffuseComponent.g + specularComponent.g);
+			bAcc += (float)(ambientComponent.b + diffuseComponent.b + specularComponent.b);
+			aAcc += (float)(ambientComponent.a + diffuseComponent.a + specularComponent.a);
+		}
+
+		float r = glm::clamp(rAcc / sampleLocations.size(), 0.0f, 255.0f);
+		float g = glm::clamp(gAcc / sampleLocations.size(), 0.0f, 255.0f);
+		float b = glm::clamp(bAcc / sampleLocations.size(), 0.0f, 255.0f);
+		float a = glm::clamp(aAcc / sampleLocations.size(), 0.0f, 255.0f);
+
+		// Return the final color
+		return sf::Color((sf::Uint8)r,
+			(sf::Uint8)g,
+			(sf::Uint8)b,
+			(sf::Uint8)a);
 	}
 }
 
@@ -398,13 +541,6 @@ void Trace(const Ray& ray,
 		// --------------------------------------------------------------------
 		// Light source rendering
 
-		if (intersect.HitObject->Type() == ObjectType::keAREALIGHT)
-		{
-			int x = 2;
-			//std::cout << "arealight" << std::endl;
-
-		}
-
 		// Check if we hit a light source
 		if (intersect.HitObject->Type() == ObjectType::keDIRECTIONALLIGHT ||
 			intersect.HitObject->Type() == ObjectType::kePOINTLIGHT ||
@@ -463,6 +599,7 @@ void Trace(const Ray& ray,
 			for (unsigned int lightIndex = 0; lightIndex < areaLightSources.size(); lightIndex++)
 			{
 				AreaLight& currentAreaLight = *areaLightSources[lightIndex];
+				currentAreaLight.ResetSamplePositions();
 
 				// Check the area light source
 				unsigned int sampleCountX = currentAreaLight.GetSampleCountX();
@@ -477,8 +614,8 @@ void Trace(const Ray& ray,
 					for (unsigned int col = 0; col < sampleCountX; col++)
 					{
 						// Find the current position for the current sample rectangle
-						float currentX = currentAreaLight.GetPosition().x + col * sampleSizeX;
-						float currentZ = currentAreaLight.GetPosition().z + row * sampleSizeZ;
+						float currentX = currentAreaLight.GetLowerLayerPosition().x + col * sampleSizeX;
+						float currentZ = currentAreaLight.GetLowerLayerPosition().z + row * sampleSizeZ;
 
 						// Generate a random offset within the current sample square
 						float xOffset = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / sampleSizeX));
@@ -486,8 +623,9 @@ void Trace(const Ray& ray,
 
 						// Calculate the position of the next sample
 						glm::vec3 currentSamplePoint = glm::vec3(currentX + xOffset,
-							currentAreaLight.GetPosition().y,
+							currentAreaLight.GetLowerLayerPosition().y - Constants::EPS,
 							currentZ + zOffset);
+						currentAreaLight.AddSampleLocation(currentSamplePoint);
 
 						// Calculate the direction to the intersection point
 						glm::vec3 shadowVector = currentSamplePoint - newIntersect.IntersectionPoint;
@@ -500,62 +638,11 @@ void Trace(const Ray& ray,
 						IntersectionInfo intersect = RaySceneIntersection(shadowRay, scene);
 						if (intersect.HitObject != NULL)
 						{
-							/*if (intersect.HitObject->Type() == ObjectType::keSPHERE)
-							{
-							fSoftShade += currentAreaLight.GetSampleScale();
-							}
-							if (intersect.HitObject->Type() == ObjectType::kePLANE)
-							{
-							fSoftShade += currentAreaLight.GetSampleScale();
-							}*/
 							if (intersect.HitObject->Type() == ObjectType::keAREALIGHT)
 							{
 								fSoftShade += currentAreaLight.GetSampleScale();
 							}
 						}
-
-						//// Get the object list
-						//std::vector<Object*>& objectList = scene.ObjectList();
-
-						//// Check all objects in the scene for intersection against the shadow ray
-						//for (Object* obj : objectList)
-						//{
-						//	//// Don't check for intersections against light sources
-						//	//if (obj->Type() == ObjectType::kePOINTLIGHT ||
-						//	//	obj->Type() == ObjectType::keDIRECTIONALLIGHT ||
-						//	//	obj->Type() == ObjectType::keAREALIGHT)
-						//	//{
-						//	//	continue;
-						//	//}
-
-						//	//if (obj->GetIndex() != intersect.HitObject->GetIndex())
-						//	//{
-						//	//	IntersectionInfo intersection = obj->FindIntersection(shadowRay);
-						//	//	if (intersection.RayLength <= distance && intersection.HitObject != NULL)
-						//	//	{
-						//	//		if (intersection.HitObject->Type() != ObjectType::kePOINTLIGHT &&
-						//	//			intersection.HitObject->Type() != ObjectType::keDIRECTIONALLIGHT &&
-						//	//			intersection.HitObject->Type() != ObjectType::keAREALIGHT)
-						//	//		{
-						//	//			fSoftShade += currentAreaLight.GetSampleScale();
-						//	//			break;
-						//	//		}
-						//	//	}
-						//	//}
-
-						//	if (obj->GetIndex() != intersect.HitObject->GetIndex())
-						//	{
-						//		IntersectionInfo intersection = obj->FindIntersection(shadowRay);
-						//		if (intersection.HitObject != NULL)
-						//		{
-						//			if (intersection.RayLength <= distance && intersection.HitObject->GetIndex() == currentAreaLight.GetIndex())
-						//			{
-						//				fSoftShade += currentAreaLight.GetSampleScale();
-						//				break;
-						//			}
-						//		}
-						//	}
-						//}
 					}
 				}
 			}
@@ -663,8 +750,7 @@ void Trace(const Ray& ray,
 		// Shading model
 
 		// Calculate the color of the object based on the shading model
-		colorAccumulator += FindColor(intersect, hitObjectMaterial, scene, fSoftShade);
-		//colorAccumulator += FindColor(intersect, hitObjectMaterial, scene, fShade);
+		colorAccumulator += FindColor(intersect, hitObjectMaterial, scene, fShade, fSoftShade);
 
 		// --------------------------------------------------------------------
 		// Refraction
@@ -866,13 +952,48 @@ void Trace(const Ray& ray,
 sf::Color FindColor(const IntersectionInfo& intersect, 
 	const Material& hitObjectMaterial,
 	Scene& scene,
-	float fShade)
+	float fShade,
+	float fSoftShade)
 {
+	// ---------------------------------------------------------------------------
+
 	sf::Color finalColor;
+
+	// ---------------------------------------------------------------------------
 
 	std::vector<DirectionalLight*>& dirLightSources = scene.DirectionalLightList();
 	std::vector<PointLight*>& pointLightSources = scene.PointLightList();
+	std::vector<AreaLight*>& areaLightSources = scene.AreaLightList();
 
+	// ---------------------------------------------------------------------------
+
+	// Go through all the area lights in the scene
+	for (unsigned int lightIndex = 0; lightIndex < areaLightSources.size(); lightIndex++)
+	{
+		AreaLight& currentAreaLight = *areaLightSources[lightIndex];
+
+		if (eLightModel == UI::LightingModel::Phong)
+		{
+			// Compute the final color
+			finalColor += PhongLighting(currentAreaLight,
+				hitObjectMaterial,
+				intersect.IntersectionPoint,
+				intersect.NormalAtIntersection,
+				fSoftShade);
+		}
+		else if (eLightModel == UI::LightingModel::BlinnPhong)
+		{
+			// Compute the final color
+			finalColor += BlinnPhongLighting(currentAreaLight,
+				hitObjectMaterial,
+				intersect.IntersectionPoint,
+				intersect.NormalAtIntersection,
+				fSoftShade);
+		}
+	}
+
+	// ---------------------------------------------------------------------------
+	
 	// Go through all directional light sources in the scene
 	for (unsigned int lightIndex = 0; lightIndex < dirLightSources.size(); lightIndex++)
 	{
@@ -899,6 +1020,8 @@ sf::Color FindColor(const IntersectionInfo& intersect,
 		}
 	}
 
+	// ---------------------------------------------------------------------------
+
 	// Go through all the point lights in the scene
 	for (unsigned int lightIndex = 0; lightIndex < pointLightSources.size(); lightIndex++)
 	{
@@ -924,6 +1047,8 @@ sf::Color FindColor(const IntersectionInfo& intersect,
 				fShade);
 		}
 	}
+
+	// ---------------------------------------------------------------------------
 
 	return finalColor;
 }
@@ -1235,22 +1360,23 @@ int main(int argc, char **argv)
 		"PointLightRed");
 
 	// Add area light for soft shadows
-	Triangle triangle1(glm::vec3(0.0f, 2.0f, 0.0f),
-		glm::vec3(1.0f, 2.0f, 0.0f),
-		glm::vec3(0.0f, 2.0f, 1.0f));
-	Triangle triangle2(glm::vec3(0.0f, 2.0f, 1.0f),
-		glm::vec3(1.0f, 2.0f, 0.0f),
-		glm::vec3(1.0f, 2.0f, 1.0f));
+	Triangle triangle1(glm::vec3(0.0f, 5.0f, 0.0f),
+		glm::vec3(1.0f, 5.0f, 0.0f),
+		glm::vec3(0.0f, 5.0f, 1.0f));
+	Triangle triangle2(glm::vec3(0.0f, 5.0f, 1.0f),
+		glm::vec3(1.0f, 5.0f, 0.0f),
+		glm::vec3(1.0f, 5.0f, 1.0f));
 
-	AreaLight* areaLight = new AreaLight("SquareAreaLight");
-	areaLight->AddTriangle(triangle1);
-	areaLight->AddTriangle(triangle2);
+	AreaLight* areaLight = new AreaLight(
+		glm::vec3(3.0f, 4.0f, 3.0f),
+		0.8f, 0.1f, 0.8f,
+		WhiteColor, WhiteColor, WhiteColor, "SquareAreaLight");
 
 	// ------------------------------------------------------------------------
 	// Scene
 
 	//scene.AddObject(dirLight);
-	scene.AddObject(pointLight1);
+	//scene.AddObject(pointLight1);
 	scene.AddObject(areaLight);
 
 	Material sphere1CopperMat;
@@ -1309,13 +1435,13 @@ int main(int argc, char **argv)
 
 	Box* pBox1 = new Box(sphere2SilverMat, glm::vec3(2.0f, 0.0f, 3.0f), 1.0f, 1.0f, 1.0f, "FirstBox");
 
-	scene.AddObject(pSphere);
+	//scene.AddObject(pSphere);
 	//scene.AddObject(pSphere2);
 	//scene.AddObject(pSphere3);
 	scene.AddObject(pPlaneBottom);
 	//scene.AddObject(pPlaneLeft);
 	//scene.AddObject(pPlaneBack);
-	//scene.AddObject(pBox1);
+	scene.AddObject(pBox1);
 
 	// ------------------------------------------------------------------------
 	// Launch the UI thread
