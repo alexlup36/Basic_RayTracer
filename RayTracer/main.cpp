@@ -470,6 +470,8 @@ void Trace(const Ray& ray,
 				float sampleSizeX = currentAreaLight.GetSampleSizeX();
 				float sampleSizeZ = currentAreaLight.GetSampleSizeZ();
 
+				IntersectionInfo newIntersect = intersect;
+
 				for (unsigned int row = 0; row < sampleCountZ; row++)
 				{
 					for (unsigned int col = 0; col < sampleCountX; col++)
@@ -488,41 +490,72 @@ void Trace(const Ray& ray,
 							currentZ + zOffset);
 
 						// Calculate the direction to the intersection point
-						glm::vec3 shadowVector = currentSamplePoint - intersect.IntersectionPoint;
+						glm::vec3 shadowVector = currentSamplePoint - newIntersect.IntersectionPoint;
 						float distance = glm::length(shadowVector);
 						glm::vec3 shadowVectorDirection = glm::normalize(shadowVector);
-						glm::vec3 startPoint = intersect.IntersectionPoint + shadowVectorDirection * Constants::EPS;
+						glm::vec3 test = shadowVectorDirection * Constants::EPS;
+						glm::vec3 startPoint = newIntersect.IntersectionPoint + test;
 						Ray shadowRay(startPoint, shadowVectorDirection);
 
-						// Get the object list
-						std::vector<Object*>& objectList = scene.ObjectList();
-
-						// Check all objects in the scene for intersection against the shadow ray
-						for (Object* obj : objectList)
+						IntersectionInfo intersect = RaySceneIntersection(shadowRay, scene);
+						if (intersect.HitObject != NULL)
 						{
-							// Don't check for intersections against light sources
-							if (obj->Type() == ObjectType::kePOINTLIGHT ||
-								obj->Type() == ObjectType::keDIRECTIONALLIGHT ||
-								obj->Type() == ObjectType::keAREALIGHT)
+							/*if (intersect.HitObject->Type() == ObjectType::keSPHERE)
 							{
-								continue;
+							fSoftShade += currentAreaLight.GetSampleScale();
 							}
-
-							if (obj->GetIndex() != intersect.HitObject->GetIndex())
+							if (intersect.HitObject->Type() == ObjectType::kePLANE)
 							{
-								IntersectionInfo intersection = obj->FindIntersection(shadowRay);
-								if (intersection.RayLength <= distance && intersection.HitObject != NULL)
-								{
-									if (intersection.HitObject->Type() != ObjectType::kePOINTLIGHT &&
-										intersection.HitObject->Type() != ObjectType::keDIRECTIONALLIGHT &&
-										intersection.HitObject->Type() != ObjectType::keAREALIGHT)
-									{
-										fSoftShade += currentAreaLight.GetSampleScale();
-										break;
-									}
-								}
+							fSoftShade += currentAreaLight.GetSampleScale();
+							}*/
+							if (intersect.HitObject->Type() == ObjectType::keAREALIGHT)
+							{
+								fSoftShade += currentAreaLight.GetSampleScale();
 							}
 						}
+
+						//// Get the object list
+						//std::vector<Object*>& objectList = scene.ObjectList();
+
+						//// Check all objects in the scene for intersection against the shadow ray
+						//for (Object* obj : objectList)
+						//{
+						//	//// Don't check for intersections against light sources
+						//	//if (obj->Type() == ObjectType::kePOINTLIGHT ||
+						//	//	obj->Type() == ObjectType::keDIRECTIONALLIGHT ||
+						//	//	obj->Type() == ObjectType::keAREALIGHT)
+						//	//{
+						//	//	continue;
+						//	//}
+
+						//	//if (obj->GetIndex() != intersect.HitObject->GetIndex())
+						//	//{
+						//	//	IntersectionInfo intersection = obj->FindIntersection(shadowRay);
+						//	//	if (intersection.RayLength <= distance && intersection.HitObject != NULL)
+						//	//	{
+						//	//		if (intersection.HitObject->Type() != ObjectType::kePOINTLIGHT &&
+						//	//			intersection.HitObject->Type() != ObjectType::keDIRECTIONALLIGHT &&
+						//	//			intersection.HitObject->Type() != ObjectType::keAREALIGHT)
+						//	//		{
+						//	//			fSoftShade += currentAreaLight.GetSampleScale();
+						//	//			break;
+						//	//		}
+						//	//	}
+						//	//}
+
+						//	if (obj->GetIndex() != intersect.HitObject->GetIndex())
+						//	{
+						//		IntersectionInfo intersection = obj->FindIntersection(shadowRay);
+						//		if (intersection.HitObject != NULL)
+						//		{
+						//			if (intersection.RayLength <= distance && intersection.HitObject->GetIndex() == currentAreaLight.GetIndex())
+						//			{
+						//				fSoftShade += currentAreaLight.GetSampleScale();
+						//				break;
+						//			}
+						//		}
+						//	}
+						//}
 					}
 				}
 			}
@@ -630,17 +663,8 @@ void Trace(const Ray& ray,
 		// Shading model
 
 		// Calculate the color of the object based on the shading model
+		colorAccumulator += FindColor(intersect, hitObjectMaterial, scene, fSoftShade);
 		//colorAccumulator += FindColor(intersect, hitObjectMaterial, scene, fShade);
-
-		if (fSoftShade > 0.0f)
-		{
-			// Calculate the color of the object based on the shading model
-			colorAccumulator += FindColor(intersect, hitObjectMaterial, scene, fSoftShade);
-		}
-		else
-		{
-			colorAccumulator += FindColor(intersect, hitObjectMaterial, scene, fShade);
-		}
 
 		// --------------------------------------------------------------------
 		// Refraction
@@ -1139,7 +1163,7 @@ int main(int argc, char **argv)
 	// ------------------------------------------------------------------------
 
 	bGUIMode = false;
-	srand(time(NULL));
+	srand((unsigned int)time(NULL));
 
 	// ------------------------------------------------------------------------
 
@@ -1169,11 +1193,11 @@ int main(int argc, char **argv)
 
 	// ------------------------------------------------------------------------
 	// Camera
-	pCam = std::make_shared<Camera>(glm::vec3(0.685201f, 1.37899f, 0.889972f),
+	pCam = std::make_shared<Camera>(glm::vec3(-1.57641f, 2.33531f, -0.256838f),
 		60.0f,
 		60.0f * (iWidth / (float)iHeight));
-	pCam->SetXRotation(0.810466f);
-	pCam->SetYRotation(-5.64946f);
+	pCam->SetXRotation(0.49803f);
+	pCam->SetYRotation(-5.36572f);
 
 	// ------------------------------------------------------------------------
 

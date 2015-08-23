@@ -102,7 +102,7 @@ void UI::LoadUIElements()
 	// Setup the background 
 	tgui::Picture::Ptr background(m_GUI);
 	bool bSuccess = background->load("background.png");
-	background->setSize(m_uiWindowWidth, m_uiWindowHeight);
+	background->setSize((float)m_uiWindowWidth, (float)m_uiWindowHeight);
 	background->setPosition(0, 0);
 
 	// ------------------------------------------------------------------------

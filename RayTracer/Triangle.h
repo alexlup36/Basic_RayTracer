@@ -31,7 +31,7 @@ public:
 		float& t)
 	{
 		float normalDotDir = glm::dot(normal, ray.GetDirection());
-		if (normalDotDir > Constants::EPS)
+		if (fabs(normalDotDir) > Constants::EPS)
 		{
 			glm::vec3 v = m_vP1 - ray.GetOrigin();
 			t = glm::dot(v, normal) / normalDotDir;
@@ -82,37 +82,6 @@ public:
 		}
 
 		return false;
-		
-		// Barycentric coordinates
-		/*glm::vec3 e0 = m_vP2 - m_vP1;
-		glm::vec3 e1 = m_vP3 - m_vP1;
-		glm::vec3 e2 = intersectionPoint - m_vP1;
-
-		float d00 = glm::dot(e0, e0);
-		float d01 = glm::dot(e0, e1);
-		float d11 = glm::dot(e1, e1);
-		float d20 = glm::dot(e2, e0);
-		float d21 = glm::dot(e2, e1);
-
-		float invDenom = 1.0f / (d00 * d11 - d01 * d01);
-
-		float v = (d11 * d20 - d01 * d21) * invDenom;
-		float w = (d00 * d21 - d01 * d20) * invDenom;
-		float u = 1.0f - v - w;
-
-		if (v >= 0.0f && v <= 1.0f)
-		{
-			if (w >= 0.0f && w <= 1.0f)
-			{
-				if (u >= 0.0f && u <= 1.0f)
-				{
-					return true;
-				}
-			}
-		}*/
-
-		//return true;
-		/*return false;*/
 	}
 
 private:
@@ -219,8 +188,8 @@ private:
 	float m_fMaxZ;
 	float m_fMinZ;
 
-	unsigned int m_uiSampleCount_X = 30;
-	unsigned int m_uiSampleCount_Z = 30;
+	unsigned int m_uiSampleCount_X = 4;
+	unsigned int m_uiSampleCount_Z = 4;
 
 	float m_fSampleScale = 1.0f / (m_uiSampleCount_X * m_uiSampleCount_Z);
 
