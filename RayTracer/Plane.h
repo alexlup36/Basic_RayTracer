@@ -28,6 +28,9 @@ public:
 	// Getter functions
 	inline Normal GetNormal() { return m_vNormal; }
 	inline Point GetPointOnPlane() { return m_vPointOnPlane;}
+
+	inline glm::vec3 GetPosition() { return m_vNormal; }
+	inline void SetPosition(const glm::vec3& newPosition) { m_vNormal = newPosition; }
 	
 	// Find distance from the Camera to the intersection point
 	inline IntersectionInfo FindIntersection(const Ray& ray)

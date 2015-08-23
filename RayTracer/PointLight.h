@@ -22,6 +22,9 @@ public:
 		float fRadius,
 		const std::string& name);
 
+	inline glm::vec3 GetPosition() { return Position; }
+	inline void SetPosition(const glm::vec3& newPosition) { Position = newPosition; }
+
 	sf::Color AmbientLight;
 	sf::Color DiffuseLight;
 	sf::Color SpecularLight;

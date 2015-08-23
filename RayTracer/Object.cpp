@@ -11,7 +11,7 @@ Object::Object()
 Object::Object(const std::string& objectname)
 {
 	m_uIndex = ++iGlobalIndex;
-	m_sName = objectname;
+	m_sName = objectname + std::to_string(m_uIndex);
 }
 
 Object::Object(const Material& material,

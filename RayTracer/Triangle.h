@@ -26,6 +26,22 @@ public:
 	inline const glm::vec3& GetP2() const { return m_vP2; }
 	inline const glm::vec3& GetP3() const { return m_vP3; }
 
+	inline bool RayPlaneIntersect(const Ray& ray,
+		const glm::vec3& normal,
+		float& t)
+	{
+		float normalDotDir = glm::dot(normal, ray.GetDirection());
+		if (normalDotDir > Constants::EPS)
+		{
+			glm::vec3 v = m_vP1 - ray.GetOrigin();
+			t = glm::dot(v, normal) / normalDotDir;
+
+			return (t >= 0.0f);
+		}
+
+		return false;
+	}
+
 	inline bool RayTriangleIntersect(const Ray& ray, 
 		glm::vec3& normal,
 		glm::vec3& intersectionPoint, 
@@ -38,44 +54,65 @@ public:
 		// Calculate plane's normal
 		normal = glm::normalize(glm::cross(p1p2, p1p3));
 
-		// Check if the ray is parallel to the plane
-		float NormalDotDirection = glm::dot(normal, ray.GetDirection());
-		if (fabs(NormalDotDirection) < Constants::EPS)
+		if (RayPlaneIntersect(ray, normal, rayLength) == true)
 		{
-			return false;
+			intersectionPoint = ray.GetOrigin() + rayLength * ray.GetDirection();
+
+			// Check if the intersection point is inside the triangle
+
+			// Edge 1
+			glm::vec3 edge1 = m_vP2 - m_vP1;
+			glm::vec3 p1IntersectionPoint = intersectionPoint - m_vP1;
+			glm::vec3 c1 = glm::cross(edge1, p1IntersectionPoint);
+			if (glm::dot(normal, c1) < 0.0f) return false;
+
+			// Edge 2
+			glm::vec3 edge2 = m_vP3 - m_vP2;
+			glm::vec3 p2IntersectionPoint = intersectionPoint - m_vP2;
+			glm::vec3 c2 = glm::cross(edge2, p2IntersectionPoint);
+			if (glm::dot(normal, c2) < 0.0f) return false;
+
+			// Edge 3
+			glm::vec3 edge3 = m_vP1 - m_vP3;
+			glm::vec3 p3IntersectionPoint = intersectionPoint - m_vP3;
+			glm::vec3 c3 = glm::cross(edge3, p3IntersectionPoint);
+			if (glm::dot(normal, c3) < 0.0f) return false;
+
+			return true;
 		}
 
-		// Calculate the intersection point
-		float d = glm::dot(normal, m_vP1);
-		rayLength = -(glm::dot(normal, ray.GetOrigin()) + d) / NormalDotDirection;
-		if (rayLength < 0.0f)
-		{
-			// Plane behind the ray
-			return false;
-		}
-		intersectionPoint = ray.GetOrigin() + rayLength * ray.GetDirection();
-
-		// Check if the intersection point is inside the triangle
-
-		// Edge 1
-		glm::vec3 edge1 = m_vP2 - m_vP1;
-		glm::vec3 p1IntersectionPoint = intersectionPoint - m_vP1;
-		glm::vec3 c1 = glm::cross(edge1, p1IntersectionPoint);
-		if (glm::dot(normal, c1) < 0.0f) return false;
+		return false;
 		
-		// Edge 2
-		glm::vec3 edge2 = m_vP3 - m_vP2;
-		glm::vec3 p2IntersectionPoint = intersectionPoint - m_vP2;
-		glm::vec3 c2 = glm::cross(edge2, p2IntersectionPoint);
-		if (glm::dot(normal, c2) < 0.0f) return false;
+		// Barycentric coordinates
+		/*glm::vec3 e0 = m_vP2 - m_vP1;
+		glm::vec3 e1 = m_vP3 - m_vP1;
+		glm::vec3 e2 = intersectionPoint - m_vP1;
 
-		// Edge 3
-		glm::vec3 edge3 = m_vP1 - m_vP3;
-		glm::vec3 p3IntersectionPoint = intersectionPoint - m_vP3;
-		glm::vec3 c3 = glm::cross(edge3, p3IntersectionPoint);
-		if (glm::dot(normal, c3) < 0.0f) return false;
+		float d00 = glm::dot(e0, e0);
+		float d01 = glm::dot(e0, e1);
+		float d11 = glm::dot(e1, e1);
+		float d20 = glm::dot(e2, e0);
+		float d21 = glm::dot(e2, e1);
 
-		return true;
+		float invDenom = 1.0f / (d00 * d11 - d01 * d01);
+
+		float v = (d11 * d20 - d01 * d21) * invDenom;
+		float w = (d00 * d21 - d01 * d20) * invDenom;
+		float u = 1.0f - v - w;
+
+		if (v >= 0.0f && v <= 1.0f)
+		{
+			if (w >= 0.0f && w <= 1.0f)
+			{
+				if (u >= 0.0f && u <= 1.0f)
+				{
+					return true;
+				}
+			}
+		}*/
+
+		//return true;
+		/*return false;*/
 	}
 
 private:
@@ -87,11 +124,11 @@ private:
 
 // ----------------------------------------------------------------------------
 
-class AreaLight : public Object
+class AreaLight : public Light
 {
 public:
 	AreaLight(const std::string& name)
-		: Object(name)
+		: Light(glm::vec3(0.0f), 0.0f, name)
 	{
 		m_Type = ObjectType::keAREALIGHT;
 
@@ -127,13 +164,14 @@ public:
 		if (p3.z < m_fMinZ) m_fMinZ = p3.z;
 
 		// Update the position, width and depth of the area light
-		m_vPosition = glm::vec2(m_fMinX, m_fMinZ);
 		m_fWidth = fabs(m_fMaxX - m_fMinX);
 		m_fDepth = fabs(m_fMaxZ - m_fMinZ);
 
 		// Update the sample size on the x and z direction
 		m_fSampleSize_X = m_fWidth / m_uiSampleCount_X;
 		m_fSampleSize_Z = m_fDepth / m_uiSampleCount_Z;
+
+		m_fHeight = p1.y;
 	}
 
 	inline IntersectionInfo FindIntersection(const Ray& ray)
@@ -158,7 +196,9 @@ public:
 		return IntersectionInfo(vec3(0.0f), -1.0f, vec3(0.0f), NULL);
 	}
 
-	inline const glm::vec2 GetPosition() const { return m_vPosition; }
+	inline glm::vec3 GetPosition() { return glm::vec3(m_fMinX, m_fHeight, m_fMinZ); }
+	inline void SetPosition(const glm::vec3& newPosition) {}
+
 	inline const float GetWidth() const { return m_fWidth; }
 	inline const float GetDepth() const { return m_fDepth; }
 	inline const float GetSampleSizeX() const { return m_fSampleSize_X; }
@@ -170,17 +210,17 @@ public:
 private:
 	std::vector<Triangle> m_vTriangleList;
 
-	glm::vec2 m_vPosition;
 	float m_fWidth;
 	float m_fDepth;
+	float m_fHeight;
 
 	float m_fMaxX;
 	float m_fMinX;
 	float m_fMaxZ;
 	float m_fMinZ;
 
-	unsigned int m_uiSampleCount_X = 4;
-	unsigned int m_uiSampleCount_Z = 4;
+	unsigned int m_uiSampleCount_X = 30;
+	unsigned int m_uiSampleCount_Z = 30;
 
 	float m_fSampleScale = 1.0f / (m_uiSampleCount_X * m_uiSampleCount_Z);
 

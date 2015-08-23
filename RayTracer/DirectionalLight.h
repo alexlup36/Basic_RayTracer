@@ -20,6 +20,9 @@ public:
 		float fRadius,
 		const std::string& name);
 
+	inline glm::vec3 GetPosition() { return Direction; }
+	inline void SetPosition(const glm::vec3& newPosition) { Direction = newPosition; }
+
 	glm::vec3 Direction;
 
 	sf::Color AmbientLight;

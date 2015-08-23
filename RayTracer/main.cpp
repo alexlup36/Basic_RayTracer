@@ -21,11 +21,14 @@
 #include "DirectionalLight.h"
 #include "PointLight.h"
 #include "Triangle.h"
+#include "Box.h"
 
 #include "SFML/Window.hpp"
 #include "SFML/Graphics.hpp"
 
 #include "TGUI/TGUI.hpp"
+
+#include "UI.h"
 
 // ------------------------------------------------------------------------
 
@@ -33,7 +36,7 @@
 #include <thread>
 #include <mutex>
 #include <condition_variable>
-#define MULTITHREADING
+//#define MULTITHREADING
 
 #ifdef MULTITHREADING
 #include <boost/threadpool.hpp>
@@ -48,65 +51,61 @@ std::vector<Task> ImageProcessingTaskList;
 unsigned int m_iThreadCount = 24;
 
 void SetupMultithread();
-void ProcessLines(int iStartLineIndex, int iEndLineIndex);
 
 #endif // MULTITHREADING
 
 // ------------------------------------------------------------------------
 // Window
-const unsigned int iWidth = 800;
-const unsigned int iHeight = 600;
+const unsigned int iWidth = 640;
+const unsigned int iHeight = 480;
 const unsigned int iImageSize = iWidth * iHeight;
 const unsigned int iColor = 24;
+bool bGUIMode;
+
+// ------------------------------------------------------------------------
+// Modifiable values from the UI
 float moveSpeed = 1.0f;
 unsigned int MAX_REFLECTION_DEPTH = 5;
 unsigned int MAX_REFRACTION_DEPTH = 5;
-bool bGUIMode;
-unsigned int SliderPositionAmplitude = 30;
+
 int SquareLength = 5;
-const int SampleCount = 1;
-const float SampleDistance = 1.0f / SampleCount;
+int SampleCount = 10;
+float SampleDistance = 1.0f / SampleCount;
+
 const float AmbientRefractiveIndex = 1.0003f;
 
-enum Button
-{
-	UpdateSettingsID = 0,
-	InvalidID,
-};
+bool UpdateRequired = true;
+bool Realtime = false;
+bool ShadowsEnabled = true;
+bool SoftShadowsEnabled = true;
+bool SuperSamplingEnabled = false;
+bool PlaneTexturingEnabled = false;
+bool ReflectionEnabled = false;
+bool RefractionEnabled = false;
+
+UI::LightingModel eLightModel = UI::LightingModel::BlinnPhong;
+
+// ------------------------------------------------------------------------
 
 sf::RenderWindow window(sf::VideoMode(iWidth, iHeight, iColor), "RayTracer"/*, sf::Style::Fullscreen*/);
 sf::Vector2i windowPosition = window.getPosition();
 sf::Vector2i screenCenter(static_cast<int>(windowPosition.x + iWidth * 0.5f), 
 	static_cast<int>(windowPosition.y + iHeight * 0.5f));
 
-// Initialize the Gui 
-tgui::Gui gui(window);
-
-tgui::Slider::Ptr sliderXPtr = nullptr;
-tgui::Slider::Ptr sliderYPtr = nullptr;
-tgui::Slider::Ptr sliderZPtr = nullptr;
-
-tgui::ComboBox::Ptr comboBox = nullptr;
-
 // -----------------------------------------------------------------------------
 
 Scene scene;
-std::vector<DirectionalLight*> dirLightSources;
-std::vector<PointLight*> pointLightSources;
 std::shared_ptr<Camera> pCam;
 sf::Uint8* pixels = new sf::Uint8[iWidth * iHeight * 4];
 
-AreaLight areaLight("SquareAreaLight");
-
 // -----------------------------------------------------------------------------
+// Forward declarations
 
-void Draw(Scene& scene);
+void Draw(int iStartLineIndex, int iEndLineIndex);
+void Render(int iStartLineIndex, int iEndLineIndex);
 void Update(float dt);
 void UpdateInput(glm::vec3& moveVector);
 
-void SetupWidgets(tgui::Gui& gui);
-void updateButtonCallback(const tgui::Callback& callback);
-void comboBoxSelectionCallback(const tgui::Callback& callback);
 IntersectionInfo RaySceneIntersection(const Ray& ray, Scene& scene);
 sf::Color FindColor(const IntersectionInfo& intersect, const Material& hitObjectMaterial, Scene& scene, float fShade);
 void CalculateSquareCoord(int intersectionX, int intersectionZ, int& coordX, int& coordZ);
@@ -399,6 +398,13 @@ void Trace(const Ray& ray,
 		// --------------------------------------------------------------------
 		// Light source rendering
 
+		if (intersect.HitObject->Type() == ObjectType::keAREALIGHT)
+		{
+			int x = 2;
+			//std::cout << "arealight" << std::endl;
+
+		}
+
 		// Check if we hit a light source
 		if (intersect.HitObject->Type() == ObjectType::keDIRECTIONALLIGHT ||
 			intersect.HitObject->Type() == ObjectType::kePOINTLIGHT ||
@@ -417,151 +423,173 @@ void Trace(const Ray& ray,
 		// Procedural plane texturing
 
 		// Object type plane hit => square pattern texturing
-		//if (intersect.HitObject->Type() == ObjectType::kePLANE)
-		//{
-		//	// Get the intersection point between the ray and the plane
-		//	int intersectionX = (int)floor(intersect.IntersectionPoint.x);
-		//	int intersectionZ = (int)floor(intersect.IntersectionPoint.z);
+		if (PlaneTexturingEnabled == true)
+		{
+			if (intersect.HitObject->Type() == ObjectType::kePLANE)
+			{
+				// Get the intersection point between the ray and the plane
+				int intersectionX = (int)floor(intersect.IntersectionPoint.x);
+				int intersectionZ = (int)floor(intersect.IntersectionPoint.z);
 
-		//	int xSquareCoordinate = 0;
-		//	int ySquareCoordinate = 0;
+				int xSquareCoordinate = 0;
+				int ySquareCoordinate = 0;
 
-		//	// Calculate the coordinates of the square where the intersection occurred
-		//	CalculateSquareCoord(intersectionX, intersectionZ, xSquareCoordinate, ySquareCoordinate);
+				// Calculate the coordinates of the square where the intersection occurred
+				CalculateSquareCoord(intersectionX, intersectionZ, xSquareCoordinate, ySquareCoordinate);
 
-		//	if ((abs(xSquareCoordinate) + abs(ySquareCoordinate)) % 2 == 0)
-		//	{
-		//		hitObjectMaterial.Diffuse = sf::Color(0, 0, 0, 255);
-		//	}
-		//	else
-		//	{
-		//		hitObjectMaterial.Diffuse = sf::Color(255, 255, 255, 255);
-		//	}
-		//}
+				if ((abs(xSquareCoordinate) + abs(ySquareCoordinate)) % 2 == 0)
+				{
+					hitObjectMaterial.Diffuse = sf::Color(0, 0, 0, 255);
+				}
+				else
+				{
+					hitObjectMaterial.Diffuse = sf::Color(255, 255, 255, 255);
+				}
+			}
+		}
 
 		// --------------------------------------------------------------------
 		// Shadows
 
-		float fShade = 0.0f;
+		float fShade = 1.0f;
+		float fSoftShade = 0.0f;
 
-		if (intersect.HitObject != NULL)
+		if (SoftShadowsEnabled == true)
 		{
-			// Calculate the shadow ray for each light source in the scene
+			// Get the list of area lights in the scene
+			std::vector<AreaLight*>& areaLightSources = scene.AreaLightList();
 
-			// Go through all directional light sources and calculate the shadow rays
-			//for (unsigned int lightIndex = 0; lightIndex < dirLightSources.size(); lightIndex++)
-			//{
-			//	// Get the current light source
-			//	DirectionalLight& currentLight = *dirLightSources[lightIndex];
-
-			//	// Calculate the intersection of the reflected ray
-			//	glm::vec3 lightDirection = glm::normalize(currentLight.Direction);
-			//	glm::vec3 startPoint = intersect.IntersectionPoint + lightDirection * Constants::EPS;
-			//	
-			//	Ray shadowRay(startPoint, lightDirection);
-
-			//	// Get the object list
-			//	std::vector<Object*>& objectList = scene.ObjectList();
-
-			//	// Check all objects in the scene for intersection against the shadow ray
-			//	for (Object* obj : objectList)
-			//	{
-			//		// Don't check for intersections against light sources
-			//		if (obj->Type() == ObjectType::kePOINTLIGHT ||
-			//			obj->Type() == ObjectType::keDIRECTIONALLIGHT ||
-			//			obj->Type() == ObjectType::keAREALIGHT)
-			//		{
-			//			continue;
-			//		}
-
-			//		if (obj->GetIndex() != intersect.HitObject->GetIndex())
-			//		{
-			//			IntersectionInfo intersection = obj->FindIntersection(shadowRay);
-			//			if (intersection.HitObject != NULL)
-			//			{
-			//				if (intersection.HitObject->Type() != ObjectType::kePOINTLIGHT &&
-			//					intersection.HitObject->Type() != ObjectType::keDIRECTIONALLIGHT &&
-			//					intersection.HitObject->Type() != ObjectType::keAREALIGHT)
-			//				{
-			//					fShade = 0.0f;
-			//					break;
-			//				}
-			//			}
-			//		}
-			//	}
-			//}
-
-			//// Go through all the point lights in the scene
-			//for (unsigned int lightIndex = 0; lightIndex < pointLightSources.size(); lightIndex++)
-			//{
-			//	// Get the current light source
-			//	PointLight& currentLight = *pointLightSources[lightIndex];
-
-			//	// Calculate the intersection of the reflected ray
-			//	glm::vec3 lightVector = currentLight.Position - intersect.IntersectionPoint;
-			//	float distance = glm::length(lightVector);
-			//	glm::vec3 lightDirection = glm::normalize(lightVector);
-			//	glm::vec3 startPoint = intersect.IntersectionPoint + lightDirection * Constants::EPS;
-			//	Ray shadowRay(startPoint, lightDirection);
-
-			//	// Get the object list
-			//	std::vector<Object*>& objectList = scene.ObjectList();
-
-			//	// Check all objects in the scene for intersection against the shadow ray
-			//	for (Object* obj : objectList)
-			//	{
-			//		// Don't check for intersections against light sources
-			//		if (obj->Type() == ObjectType::kePOINTLIGHT ||
-			//			obj->Type() == ObjectType::keDIRECTIONALLIGHT ||
-			//			obj->Type() == ObjectType::keAREALIGHT)
-			//		{
-			//			continue;
-			//		}
-
-			//		if (obj->GetIndex() != intersect.HitObject->GetIndex())
-			//		{
-			//			IntersectionInfo intersection = obj->FindIntersection(shadowRay);
-			//			if (intersection.RayLength <= distance && intersection.HitObject != NULL)
-			//			{
-			//				if (intersection.HitObject->Type() != ObjectType::kePOINTLIGHT &&
-			//					intersection.HitObject->Type() != ObjectType::keDIRECTIONALLIGHT &&
-			//					intersection.HitObject->Type() != ObjectType::keAREALIGHT)
-			//				{
-			//					fShade = 0.0f;
-			//					break;
-			//				}
-			//			}
-			//		}
-			//	}
-			//}
-
-			// Check the area light source
-			unsigned int sampleCountX = areaLight.GetSampleCountX();
-			unsigned int sampleCountZ = areaLight.GetSampleCountZ();
-			float sampleSizeX = areaLight.GetSampleSizeX();
-			float sampleSizeZ = areaLight.GetSampleSizeZ();
-
-			for (unsigned int row = 0; row < sampleCountZ; row++)
+			// Go through all the area lights in the scene
+			for (unsigned int lightIndex = 0; lightIndex < areaLightSources.size(); lightIndex++)
 			{
-				for (unsigned int col = 0; col < sampleCountX; col++)
+				AreaLight& currentAreaLight = *areaLightSources[lightIndex];
+
+				// Check the area light source
+				unsigned int sampleCountX = currentAreaLight.GetSampleCountX();
+				unsigned int sampleCountZ = currentAreaLight.GetSampleCountZ();
+				float sampleSizeX = currentAreaLight.GetSampleSizeX();
+				float sampleSizeZ = currentAreaLight.GetSampleSizeZ();
+
+				for (unsigned int row = 0; row < sampleCountZ; row++)
 				{
-					// Find the current position for the current sample rectangle
-					float currentX = areaLight.GetPosition().x + col * sampleSizeX;
-					float currentZ = areaLight.GetPosition().y + row * sampleSizeZ;
+					for (unsigned int col = 0; col < sampleCountX; col++)
+					{
+						// Find the current position for the current sample rectangle
+						float currentX = currentAreaLight.GetPosition().x + col * sampleSizeX;
+						float currentZ = currentAreaLight.GetPosition().z + row * sampleSizeZ;
 
-					// Generate a random offset within the current sample square
-					float xOffset = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / sampleSizeX));
-					float zOffset = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / sampleSizeZ));
+						// Generate a random offset within the current sample square
+						float xOffset = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / sampleSizeX));
+						float zOffset = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / sampleSizeZ));
 
-					// Calculate the position of the next sample
-					glm::vec3 currentSamplePoint = glm::vec3(currentX + xOffset, 
-						areaLight.GetPosition().y,
-						currentZ + zOffset);
+						// Calculate the position of the next sample
+						glm::vec3 currentSamplePoint = glm::vec3(currentX + xOffset,
+							currentAreaLight.GetPosition().y,
+							currentZ + zOffset);
 
-					// Calculate the direction to the intersection point
-					glm::vec3 shadowVector = currentSamplePoint - intersect.IntersectionPoint;
-					float distance = glm::length(shadowVector);
-					glm::vec3 lightDirection = glm::normalize(shadowVector);
+						// Calculate the direction to the intersection point
+						glm::vec3 shadowVector = currentSamplePoint - intersect.IntersectionPoint;
+						float distance = glm::length(shadowVector);
+						glm::vec3 shadowVectorDirection = glm::normalize(shadowVector);
+						glm::vec3 startPoint = intersect.IntersectionPoint + shadowVectorDirection * Constants::EPS;
+						Ray shadowRay(startPoint, shadowVectorDirection);
+
+						// Get the object list
+						std::vector<Object*>& objectList = scene.ObjectList();
+
+						// Check all objects in the scene for intersection against the shadow ray
+						for (Object* obj : objectList)
+						{
+							// Don't check for intersections against light sources
+							if (obj->Type() == ObjectType::kePOINTLIGHT ||
+								obj->Type() == ObjectType::keDIRECTIONALLIGHT ||
+								obj->Type() == ObjectType::keAREALIGHT)
+							{
+								continue;
+							}
+
+							if (obj->GetIndex() != intersect.HitObject->GetIndex())
+							{
+								IntersectionInfo intersection = obj->FindIntersection(shadowRay);
+								if (intersection.RayLength <= distance && intersection.HitObject != NULL)
+								{
+									if (intersection.HitObject->Type() != ObjectType::kePOINTLIGHT &&
+										intersection.HitObject->Type() != ObjectType::keDIRECTIONALLIGHT &&
+										intersection.HitObject->Type() != ObjectType::keAREALIGHT)
+									{
+										fSoftShade += currentAreaLight.GetSampleScale();
+										break;
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
+		if (ShadowsEnabled == true)
+		{
+			if (intersect.HitObject != NULL)
+			{
+				// Calculate the shadow ray for each light source in the scene
+				std::vector<DirectionalLight*>& dirLightSources = scene.DirectionalLightList();
+
+				// Go through all directional light sources and calculate the shadow rays
+				for (unsigned int lightIndex = 0; lightIndex < dirLightSources.size(); lightIndex++)
+				{
+					// Get the current light source
+					DirectionalLight& currentLight = *dirLightSources[lightIndex];
+
+					// Calculate the intersection of the reflected ray
+					glm::vec3 lightDirection = glm::normalize(currentLight.Direction);
+					glm::vec3 startPoint = intersect.IntersectionPoint + lightDirection * Constants::EPS;
+
+					Ray shadowRay(startPoint, lightDirection);
+
+					// Get the object list
+					std::vector<Object*>& objectList = scene.ObjectList();
+
+					// Check all objects in the scene for intersection against the shadow ray
+					for (Object* obj : objectList)
+					{
+						// Don't check for intersections against light sources
+						if (obj->Type() == ObjectType::kePOINTLIGHT ||
+							obj->Type() == ObjectType::keDIRECTIONALLIGHT ||
+							obj->Type() == ObjectType::keAREALIGHT)
+						{
+							continue;
+						}
+
+						if (obj->GetIndex() != intersect.HitObject->GetIndex())
+						{
+							IntersectionInfo intersection = obj->FindIntersection(shadowRay);
+							if (intersection.HitObject != NULL)
+							{
+								if (intersection.HitObject->Type() != ObjectType::kePOINTLIGHT &&
+									intersection.HitObject->Type() != ObjectType::keDIRECTIONALLIGHT &&
+									intersection.HitObject->Type() != ObjectType::keAREALIGHT)
+								{
+									fShade = 0.0f;
+									break;
+								}
+							}
+						}
+					}
+				}
+
+				std::vector<PointLight*>& pointLightSources = scene.PointLightList();
+
+				// Go through all the point lights in the scene
+				for (unsigned int lightIndex = 0; lightIndex < pointLightSources.size(); lightIndex++)
+				{
+					// Get the current light source
+					PointLight& currentLight = *pointLightSources[lightIndex];
+
+					// Calculate the intersection of the reflected ray
+					glm::vec3 lightVector = currentLight.Position - intersect.IntersectionPoint;
+					float distance = glm::length(lightVector);
+					glm::vec3 lightDirection = glm::normalize(lightVector);
 					glm::vec3 startPoint = intersect.IntersectionPoint + lightDirection * Constants::EPS;
 					Ray shadowRay(startPoint, lightDirection);
 
@@ -588,7 +616,7 @@ void Trace(const Ray& ray,
 									intersection.HitObject->Type() != ObjectType::keDIRECTIONALLIGHT &&
 									intersection.HitObject->Type() != ObjectType::keAREALIGHT)
 								{
-									fShade += areaLight.GetSampleScale();
+									fShade = 0.0f;
 									break;
 								}
 							}
@@ -596,188 +624,214 @@ void Trace(const Ray& ray,
 					}
 				}
 			}
-
-			if (fShade == 0.0f)
-			{
-				fShade = 1.0f;
-			}
 		}
 
 		// --------------------------------------------------------------------
 		// Shading model
 
 		// Calculate the color of the object based on the shading model
-		colorAccumulator += FindColor(intersect, hitObjectMaterial, scene, fShade);
+		//colorAccumulator += FindColor(intersect, hitObjectMaterial, scene, fShade);
+
+		if (fSoftShade > 0.0f)
+		{
+			// Calculate the color of the object based on the shading model
+			colorAccumulator += FindColor(intersect, hitObjectMaterial, scene, fSoftShade);
+		}
+		else
+		{
+			colorAccumulator += FindColor(intersect, hitObjectMaterial, scene, fShade);
+		}
 
 		// --------------------------------------------------------------------
 		// Refraction
 
-		//// Calculate the direction of the refracted ray
-		//glm::vec3 refractedDirection = glm::vec3(0.0f);
+		// Calculate the direction of the refracted ray
+		glm::vec3 refractedDirection = glm::vec3(0.0f);
+		
+		// Reflection factor
+		float fReflectionFactor = 0.0f;
 
-		//glm::vec3 direction = glm::normalize(ray.GetDirection());
-		//float cos_a1 = glm::dot(direction, intersect.NormalAtIntersection);
-		//float sin_a1 = 0.0f;
+		if (RefractionEnabled == true)
+		{
+			glm::vec3 direction = glm::normalize(ray.GetDirection());
+			float cos_a1 = glm::dot(direction, intersect.NormalAtIntersection);
+			float sin_a1 = 0.0f;
 
-		//if (cos_a1 <= -1.0f)
-		//{
-		//	if (cos_a1 < -1.0001f)
-		//	{
-		//		std::cout << "Dot product too small." << std::endl;
-		//	}
-		//	cos_a1 = -1.0f;
-		//	sin_a1 = 0.0f;
-		//}
-		//else if (cos_a1 >= 1.0f)
-		//{
-		//	if (cos_a1 > 1.0001f)
-		//	{
-		//		std::cout << "Dot product too large." << std::endl;
-		//	}
-		//	cos_a1 = 1.0f;
-		//	sin_a1 = 0.0f;
-		//}
-		//else
-		//{
-		//	sin_a1 = sqrt(1.0f - cos_a1 * cos_a1);
-		//}
+			if (cos_a1 <= -1.0f)
+			{
+				if (cos_a1 < -1.0001f)
+				{
+					std::cout << "Dot product too small." << std::endl;
+				}
+				cos_a1 = -1.0f;
+				sin_a1 = 0.0f;
+			}
+			else if (cos_a1 >= 1.0f)
+			{
+				if (cos_a1 > 1.0001f)
+				{
+					std::cout << "Dot product too large." << std::endl;
+				}
+				cos_a1 = 1.0f;
+				sin_a1 = 0.0f;
+			}
+			else
+			{
+				sin_a1 = sqrt(1.0f - cos_a1 * cos_a1);
+			}
 
-		//// Calculate the ratio of the two refractive indices
-		//const float ratio = fRefractiveIndex / hitObjectMaterial.RefractiveIndex;
+			// Calculate the ratio of the two refractive indices
+			const float ratio = fRefractiveIndex / hitObjectMaterial.RefractiveIndex;
 
-		//// Use Snell's law to calculate the sine of the refracted ray and normal
-		//const float sin_a2 = ratio * sin_a1;
+			// Use Snell's law to calculate the sine of the refracted ray and normal
+			const float sin_a2 = ratio * sin_a1;
 
-		//// Reflection factor
-		//float fReflectionFactor = 0.0f;
+			if (sin_a2 <= -1.0f || sin_a2 >= 1.0f)
+			{
+				// There is no refraction, only reflection
+				fReflectionFactor = 1.0f;
+			}
+			else
+			{
+				// Solve quadratic for k
+				float x1, x2;
 
-		//if (sin_a2 <= -1.0f || sin_a2 >= 1.0f)
-		//{
-		//	// There is no refraction, only reflection
-		//	fReflectionFactor = 1.0f;
-		//}
-		//else
-		//{
-		//	// Solve quadratic for k
-		//	float x1, x2;
+				float a = 1.0f;
+				float b = 2.0f * cos_a1;
+				float c = 1.0f - 1.0f / (ratio * ratio);
 
-		//	float a = 1.0f;
-		//	float b = 2.0f * cos_a1;
-		//	float c = 1.0f - 1.0f / (ratio * ratio);
+				float maxAlignment = -0.0001f;
 
-		//	float maxAlignment = -0.0001f;
+				if (SolveQuadratic(a, b, c, x1, x2) == true)
+				{
+					// Solution was found => find the correct one and exclude the ghost one
 
-		//	if (SolveQuadratic(a, b, c, x1, x2) == true)
-		//	{
-		//		// Solution was found => find the correct one and exclude the ghost one
-		//		
-		//		// ---------------------------------------------------------------------
-		//		// Calculate the direction of the refracted ray using the first solution
+					// ---------------------------------------------------------------------
+					// Calculate the direction of the refracted ray using the first solution
 
-		//		// Calculate the candidate for the refractive ray direction
-		//		glm::vec3 refractCandidate = direction + x1 * intersect.NormalAtIntersection;
+					// Calculate the candidate for the refractive ray direction
+					glm::vec3 refractCandidate = direction + x1 * intersect.NormalAtIntersection;
 
-		//		// Calculate the angle between the incident and refracted ray
-		//		float alignment = glm::dot(direction, refractCandidate);
-		//		if (alignment > maxAlignment)
-		//		{
-		//			maxAlignment = alignment;
-		//			refractedDirection = refractCandidate;
-		//		}
+					// Calculate the angle between the incident and refracted ray
+					float alignment = glm::dot(direction, refractCandidate);
+					if (alignment > maxAlignment)
+					{
+						maxAlignment = alignment;
+						refractedDirection = refractCandidate;
+					}
 
-		//		// ---------------------------------------------------------------------
-		//		// Calculate the direction of the refracted ray using the second solution
+					// ---------------------------------------------------------------------
+					// Calculate the direction of the refracted ray using the second solution
 
-		//		refractCandidate = direction + x2 * intersect.NormalAtIntersection;
-		//		alignment = glm::dot(direction, refractCandidate);
-		//		if (alignment > maxAlignment)
-		//		{
-		//			maxAlignment = alignment;
-		//			refractedDirection = refractCandidate;
-		//		}
+					refractCandidate = direction + x2 * intersect.NormalAtIntersection;
+					alignment = glm::dot(direction, refractCandidate);
+					if (alignment > maxAlignment)
+					{
+						maxAlignment = alignment;
+						refractedDirection = refractCandidate;
+					}
 
-		//		// ---------------------------------------------------------------------
-		//	}
+					// ---------------------------------------------------------------------
+				}
 
-		//	if (maxAlignment <= 0.0f)
-		//	{
-		//		std::cout << "Invalid value for max alignment." << std::endl;
-		//	}
+				if (maxAlignment <= 0.0f)
+				{
+					std::cout << "Invalid value for max alignment." << std::endl;
+				}
 
-		//	// Determine the cosine of the refracted ray and normal
-		//	float cos_a2 = sqrt(1.0f - sin_a2 * sin_a2);
-		//	if (cos_a1 < 0.0f)
-		//	{
-		//		// The polarity of cos_a1 must match the polarity of cos_a2
-		//		cos_a2 = -cos_a2;
-		//	}
+				// Determine the cosine of the refracted ray and normal
+				float cos_a2 = sqrt(1.0f - sin_a2 * sin_a2);
+				if (cos_a1 < 0.0f)
+				{
+					// The polarity of cos_a1 must match the polarity of cos_a2
+					cos_a2 = -cos_a2;
+				}
 
-		//	// Determine the fraction of the light which is being reflected
-		//	float sPolarized = PolarizedReflection(fRefractiveIndex, hitObjectMaterial.RefractiveIndex, cos_a1, cos_a2);
-		//	float pPolarized = PolarizedReflection(fRefractiveIndex, hitObjectMaterial.RefractiveIndex, cos_a2, cos_a1);
-		//	fReflectionFactor = (sPolarized + pPolarized) * 0.5f;
-		//}
+				// Determine the fraction of the light which is being reflected
+				float sPolarized = PolarizedReflection(fRefractiveIndex, hitObjectMaterial.RefractiveIndex, cos_a1, cos_a2);
+				float pPolarized = PolarizedReflection(fRefractiveIndex, hitObjectMaterial.RefractiveIndex, cos_a2, cos_a1);
+				fReflectionFactor = (sPolarized + pPolarized) * 0.5f;
+			}
+		}
 
 		// --------------------------------------------------------------------
 		// Reflection
 
-		// If the hit object is reflective or transparent and we
-		// haven't reached max reflection depth
-		//if (hitObjectMaterial.Reflectivity > 0)
-		//{
-		//	// Go through all the point lights in the scene
-		//	
-		//	// Calculate the reflected ray
-		//	vec3 reflectionDirection = glm::normalize(glm::reflect<vec3>(ray.GetDirection(), intersect.NormalAtIntersection));
+		if (ReflectionEnabled == true)
+		{
+			// If the hit object is reflective or transparent and we
+			// haven't reached max reflection depth
+			if (hitObjectMaterial.Reflectivity > 0)
+			{
+				// Go through all the point lights in the scene
 
-		//	// Calculate the intersection of the reflected ray
-		//	glm::vec3 startPoint = intersect.IntersectionPoint + reflectionDirection * Constants::EPS;
-		//	Ray reflectionRay(startPoint, reflectionDirection);
+				// Calculate the reflected ray
+				vec3 reflectionDirection = glm::normalize(glm::reflect<vec3>(ray.GetDirection(), intersect.NormalAtIntersection));
 
-		//	if (iReflectionDepth < MAX_REFLECTION_DEPTH)
-		//	{
-		//		sf::Color reflectionColor = sf::Color(0, 0, 0, 255);
-		//		Trace(reflectionRay, 
-		//			reflectionColor, 
-		//			scene, 
-		//			iReflectionDepth + 1,
-		//			iRefractionDepth + 1,
-		//			AmbientRefractiveIndex);
+				// Calculate the intersection of the reflected ray
+				glm::vec3 startPoint = intersect.IntersectionPoint + reflectionDirection * Constants::EPS;
+				Ray reflectionRay(startPoint, reflectionDirection);
 
-		//		colorAccumulator += sf::Color((sf::Uint8)(reflectionColor.r * hitObjectMaterial.Reflectivity * fReflectionFactor),
-		//			(sf::Uint8)(reflectionColor.g * hitObjectMaterial.Reflectivity * fReflectionFactor),
-		//			(sf::Uint8)(reflectionColor.b * hitObjectMaterial.Reflectivity * fReflectionFactor),
-		//			255);
-		//	}
-		//}
+				if (iReflectionDepth < MAX_REFLECTION_DEPTH)
+				{
+					sf::Color reflectionColor = sf::Color(0, 0, 0, 255);
+					Trace(reflectionRay,
+						reflectionColor,
+						scene,
+						iReflectionDepth + 1,
+						iRefractionDepth + 1,
+						AmbientRefractiveIndex);
 
+					if (RefractionEnabled == true)
+					{
+						// Reflection factor calculated using Snell
+						colorAccumulator += sf::Color((sf::Uint8)(reflectionColor.r * hitObjectMaterial.Reflectivity * fReflectionFactor),
+							(sf::Uint8)(reflectionColor.g * hitObjectMaterial.Reflectivity * fReflectionFactor),
+							(sf::Uint8)(reflectionColor.b * hitObjectMaterial.Reflectivity * fReflectionFactor),
+							255);
+					}
+					else
+					{
+						// Use the object's material reflectiveness
+						colorAccumulator += sf::Color((sf::Uint8)(reflectionColor.r * hitObjectMaterial.Reflectivity),
+							(sf::Uint8)(reflectionColor.g * hitObjectMaterial.Reflectivity),
+							(sf::Uint8)(reflectionColor.b * hitObjectMaterial.Reflectivity),
+							255);
+					}
+				}
+			}
+		}
+		
 		// --------------------------------------------------------------------
 
-		//if (hitObjectMaterial.Transparency > 0)
-		//{
-		//	// Calculate the refracted ray
-		//	refractedDirection = glm::normalize(refractedDirection);
+		if (RefractionEnabled == true)
+		{
+			if (hitObjectMaterial.Transparency > 0)
+			{
+				// Calculate the refracted ray
+				refractedDirection = glm::normalize(refractedDirection);
 
-		//	// Calculate the intersection of the refracted ray
-		//	glm::vec3 startPoint = intersect.IntersectionPoint + refractedDirection * Constants::EPS;
-		//	Ray refractionRay(startPoint, refractedDirection);
+				// Calculate the intersection of the refracted ray
+				glm::vec3 startPoint = intersect.IntersectionPoint + refractedDirection * Constants::EPS;
+				Ray refractionRay(startPoint, refractedDirection);
 
-		//	if (iRefractionDepth < MAX_REFRACTION_DEPTH)
-		//	{
-		//		sf::Color refractionColor = sf::Color(0, 0, 0, 255);
-		//		Trace(refractionRay,
-		//			refractionColor,
-		//			scene,
-		//			iReflectionDepth + 1,
-		//			iRefractionDepth + 1,
-		//			AmbientRefractiveIndex);
+				if (iRefractionDepth < MAX_REFRACTION_DEPTH)
+				{
+					sf::Color refractionColor = sf::Color(0, 0, 0, 255);
+					Trace(refractionRay,
+						refractionColor,
+						scene,
+						iReflectionDepth + 1,
+						iRefractionDepth + 1,
+						AmbientRefractiveIndex);
 
-		//		colorAccumulator += sf::Color((sf::Uint8)(refractionColor.r * /*hitObjectMaterial.Transparency * */(1.0f - fReflectionFactor)),
-		//			(sf::Uint8)(refractionColor.g * /*hitObjectMaterial.Transparency * */(1.0f - fReflectionFactor)),
-		//			(sf::Uint8)(refractionColor.b * /*hitObjectMaterial.Transparency * */(1.0f - fReflectionFactor)),
-		//			255);
-		//	}
-		//}
+					colorAccumulator += sf::Color((sf::Uint8)(refractionColor.r * hitObjectMaterial.Transparency * (1.0f - fReflectionFactor)),
+						(sf::Uint8)(refractionColor.g * hitObjectMaterial.Transparency * (1.0f - fReflectionFactor)),
+						(sf::Uint8)(refractionColor.b * hitObjectMaterial.Transparency * (1.0f - fReflectionFactor)),
+						255);
+				}
+			}
+		}
 
 		// --------------------------------------------------------------------
 	}
@@ -792,18 +846,33 @@ sf::Color FindColor(const IntersectionInfo& intersect,
 {
 	sf::Color finalColor;
 
+	std::vector<DirectionalLight*>& dirLightSources = scene.DirectionalLightList();
+	std::vector<PointLight*>& pointLightSources = scene.PointLightList();
+
 	// Go through all directional light sources in the scene
 	for (unsigned int lightIndex = 0; lightIndex < dirLightSources.size(); lightIndex++)
 	{
 		// Get the current light source
 		DirectionalLight& currentLight = *dirLightSources[lightIndex];
 
-		// Compute the final color
-		finalColor += PhongLighting(currentLight,
-			hitObjectMaterial,
-			intersect.IntersectionPoint,
-			intersect.NormalAtIntersection,
-			fShade);
+		if (eLightModel == UI::LightingModel::Phong)
+		{
+			// Compute the final color
+			finalColor += PhongLighting(currentLight,
+				hitObjectMaterial,
+				intersect.IntersectionPoint,
+				intersect.NormalAtIntersection,
+				fShade);
+		}
+		else if (eLightModel == UI::LightingModel::BlinnPhong)
+		{
+			// Compute the final color
+			finalColor += BlinnPhongLighting(currentLight,
+				hitObjectMaterial,
+				intersect.IntersectionPoint,
+				intersect.NormalAtIntersection,
+				fShade);
+		}
 	}
 
 	// Go through all the point lights in the scene
@@ -812,12 +881,24 @@ sf::Color FindColor(const IntersectionInfo& intersect,
 		// Get the current light source
 		PointLight& currentLight = *pointLightSources[lightIndex];
 
-		// Compute the final color
-		finalColor += PhongLighting(currentLight,
-			hitObjectMaterial,
-			intersect.IntersectionPoint,
-			intersect.NormalAtIntersection,
-			fShade);
+		if (eLightModel == UI::LightingModel::Phong)
+		{
+			// Compute the final color
+			finalColor += PhongLighting(currentLight,
+				hitObjectMaterial,
+				intersect.IntersectionPoint,
+				intersect.NormalAtIntersection,
+				fShade);
+		}
+		else if (eLightModel == UI::LightingModel::BlinnPhong)
+		{
+			// Compute the final color
+			finalColor += BlinnPhongLighting(currentLight,
+				hitObjectMaterial,
+				intersect.IntersectionPoint,
+				intersect.NormalAtIntersection,
+				fShade);
+		}
 	}
 
 	return finalColor;
@@ -863,7 +944,24 @@ IntersectionInfo RaySceneIntersection(const Ray& ray, Scene& scene)
 
 // ------------------------------------------------------------------------
 
-void Draw(Scene& scene)
+void Render(int iStartLineIndex, int iEndLineIndex)
+{
+	if (Realtime == true)
+	{
+		Draw(iStartLineIndex, iEndLineIndex);
+	}
+	else
+	{
+		if (UpdateRequired == true)
+		{
+			Draw(iStartLineIndex, iEndLineIndex);
+		}
+	}
+}
+
+// ------------------------------------------------------------------------
+
+void Draw(int iStartLineIndex, int iEndLineIndex)
 {
 	// ------------------------------------------------------------------------
 	// Pre-compute camera values
@@ -886,12 +984,12 @@ void Draw(Scene& scene)
 	int iCurrentPixel;
 
 	// Update pixels
-	for (int iRow = 0; iRow < iHeight; iRow++)
+	for (int iRow = iStartLineIndex; iRow < iEndLineIndex; iRow++)
 	{
 		for (int iColumn = 0; iColumn < iWidth; iColumn++)
 		{
 			// Anti-aliasing active ---------------------------------------------------------
-			if (SampleCount > 1.0f)
+			if (SuperSamplingEnabled == true && SampleCount > 1.0f)
 			{
 				float rAcc = 0.0f;
 				float gAcc = 0.0f;
@@ -931,12 +1029,23 @@ void Draw(Scene& scene)
 					}
 				}
 
+				if (rAcc != 0.0f)
+				{
+					float r = round(rAcc / SampleCount);
+					float g = round(gAcc / SampleCount);
+					float b = round(bAcc / SampleCount);
+
+					sf::Uint8 rfinal = (sf::Uint8)r;
+					sf::Uint8 gfinal = (sf::Uint8)g;
+
+				}
+
 				// Calculate final color
 				sf::Color finalPixelColor = sf::Color(
-					(sf::Uint8)(rAcc / SampleCount),
-					(sf::Uint8)(gAcc / SampleCount),
-					(sf::Uint8)(bAcc / SampleCount),
-					(sf::Uint8)(aAcc / SampleCount));
+					(sf::Uint8)(round(rAcc / SampleCount)),
+					(sf::Uint8)(round(gAcc / SampleCount)),
+					(sf::Uint8)(round(bAcc / SampleCount)),
+					(sf::Uint8)(round(aAcc / SampleCount)));
 
 				iCurrentPixel = 4 * (iColumn + iRow * iWidth);
 				SetPixelColor(iCurrentPixel, finalPixelColor);
@@ -983,40 +1092,6 @@ void Update(float dt)
 
 		// ------------------------------------------------------------------------
 	}
-	else
-	{
-		// Retrieve the values from the position sliders
-		int xPos, yPos, zPos;
-
-		if (sliderXPtr != nullptr)
-		{
-			xPos = (int)(sliderXPtr->getValue() - SliderPositionAmplitude * 0.5f);
-		}
-
-		if (sliderYPtr != nullptr)
-		{
-			yPos = (int)(sliderYPtr->getValue() - SliderPositionAmplitude * 0.5f);
-		}
-
-		if (sliderZPtr != nullptr)
-		{
-			zPos = (int)(sliderZPtr->getValue() - SliderPositionAmplitude * 0.5f);
-		}
-
-		// Get a reference to the selected point light
-		int iItemIndex = comboBox->getSelectedItemIndex();
-		if (iItemIndex != -1)
-		{
-			// Update the position of the selected point light
-			PointLight* pSelectedPointLight = pointLightSources[iItemIndex];
-
-			if (pSelectedPointLight != NULL)
-			{
-				pSelectedPointLight->Position = glm::vec3(xPos, yPos, zPos);
-			}
-		}
-	}
-
 }
 
 // ------------------------------------------------------------------------
@@ -1062,13 +1137,9 @@ void UpdateInput(glm::vec3& moveVector)
 int main(int argc, char **argv)
 {
 	// ------------------------------------------------------------------------
-	bool bSuccess = gui.setGlobalFont("Lib\\TGUI\\fonts\\DejaVuSans.ttf");
-	if (!bSuccess)
-	{
-		std::cout << "Error loading TGUI font." << std::endl;
-	}
 
 	bGUIMode = false;
+	srand(time(NULL));
 
 	// ------------------------------------------------------------------------
 
@@ -1089,6 +1160,7 @@ int main(int argc, char **argv)
 	sf::Texture texture;
 	texture.create(iWidth, iHeight);
 	sf::Sprite sprite;
+	unsigned int uiPrintIndex = 0;
 
 	// ------------------------------------------------------------------------
 	// Clock
@@ -1097,36 +1169,40 @@ int main(int argc, char **argv)
 
 	// ------------------------------------------------------------------------
 	// Camera
-	pCam = std::make_shared<Camera>(glm::vec3(1.21902f, 0.571253f, 2.34262f),
+	pCam = std::make_shared<Camera>(glm::vec3(0.685201f, 1.37899f, 0.889972f),
 		60.0f,
-		90.0f);
-	pCam->SetXRotation(0.208212f);
-	pCam->SetYRotation(-8.64331f);
+		60.0f * (iWidth / (float)iHeight));
+	pCam->SetXRotation(0.810466f);
+	pCam->SetYRotation(-5.64946f);
 
 	// ------------------------------------------------------------------------
 
 	// Light
-	DirectionalLight dirLight(glm::vec3(-1.0f, 2.0f, 0.5f),
+	DirectionalLight* dirLight = new DirectionalLight(
+		glm::vec3(-1.0f, 2.0f, 0.5f),
 		sf::Color(40, 40, 40, 255),
 		sf::Color(40, 40, 40, 255),
 		sf::Color(40, 40, 40, 255),
 		5.0f, 
 		"DirectionalLight1");
-	PointLight pointLight1(glm::vec3(1.0f, 1.0f, 1.0f),
+	PointLight* pointLight1 = new PointLight(
+		glm::vec3(1.0f, 1.0f, 1.0f),
 		sf::Color(80, 80, 80, 255),
 		WhiteColor,
 		WhiteColor,
 		glm::vec3(0.0f, 2.0f, 1.0f),
 		5.0f,
 		"PointLightWhite");
-	PointLight pointLight2(glm::vec3(4.0f, 1.0f, -3.0f),
+	PointLight* pointLight2 = new PointLight(
+		glm::vec3(4.0f, 1.0f, -3.0f),
 		sf::Color(10, 10, 10, 255),
 		BlueColor,
 		WhiteColor,
 		glm::vec3(1.0f, 4.0f, 1.0f),
 		2.0f,
 		"PointLightBlue");
-	PointLight pointLight3(glm::vec3(8.0f, 1.0f, -5.0f),
+	PointLight* pointLight3 = new PointLight(
+		glm::vec3(8.0f, 1.0f, -5.0f),
 		sf::Color(10, 10, 10, 255),
 		RedColor,
 		WhiteColor,
@@ -1134,31 +1210,24 @@ int main(int argc, char **argv)
 		2.0f,
 		"PointLightRed");
 
-	//dirLightSources.push_back(&dirLight);
-	pointLightSources.push_back(&pointLight1);
-	//pointLightSources.push_back(&pointLight2);
-	//pointLightSources.push_back(&pointLight3);
+	// Add area light for soft shadows
+	Triangle triangle1(glm::vec3(0.0f, 2.0f, 0.0f),
+		glm::vec3(1.0f, 2.0f, 0.0f),
+		glm::vec3(0.0f, 2.0f, 1.0f));
+	Triangle triangle2(glm::vec3(0.0f, 2.0f, 1.0f),
+		glm::vec3(1.0f, 2.0f, 0.0f),
+		glm::vec3(1.0f, 2.0f, 1.0f));
 
-	Triangle triangle1(glm::vec3(0.0f, -10.0f, 0.0f),
-		glm::vec3(3.0f, -10.0f, 0.0f),
-		glm::vec3(0.0f, -10.0f, 3.0f));
-	Triangle triangle2(glm::vec3(0.0f, -10.0f, 3.0f),
-		glm::vec3(3.0f, -10.0f, 0.0f),
-		glm::vec3(3.0f, -10.0f, 3.0f));
-
-	areaLight.AddTriangle(triangle1);
-	areaLight.AddTriangle(triangle2);
-
-	// ------------------------------------------------------------------------
-
-	SetupWidgets(gui);
+	AreaLight* areaLight = new AreaLight("SquareAreaLight");
+	areaLight->AddTriangle(triangle1);
+	areaLight->AddTriangle(triangle2);
 
 	// ------------------------------------------------------------------------
 	// Scene
 
-	//scene.AddObject(&dirLight);
-	scene.AddObject(&pointLight1);
-	scene.AddObject(&areaLight);
+	//scene.AddObject(dirLight);
+	scene.AddObject(pointLight1);
+	scene.AddObject(areaLight);
 
 	Material sphere1CopperMat;
 	memset(&sphere1CopperMat, 0, sizeof(Material));
@@ -1175,8 +1244,8 @@ int main(int argc, char **argv)
 	sphere2SilverMat.Diffuse = sf::Color(129, 129, 129, 255);
 	sphere2SilverMat.Specular = sf::Color(130, 130, 130, 255);
 	sphere2SilverMat.Shininess = 51.2f;
-	sphere2SilverMat.Reflectivity = 1.0f;
-	sphere2SilverMat.Transparency = 1.0f;
+	sphere2SilverMat.Reflectivity = 0.3f;
+	sphere2SilverMat.Transparency = 0.5f;
 	sphere2SilverMat.RefractiveIndex = 1.55f;
 
 	Material greenRubberMat;
@@ -1188,32 +1257,63 @@ int main(int argc, char **argv)
 	greenRubberMat.Reflectivity = 1.0f;
 	greenRubberMat.Transparency = 0.0f;
 
-	std::shared_ptr<Sphere> pSphere = std::make_shared<Sphere>(sphere1CopperMat, 
+	Sphere* pSphere = new Sphere(sphere1CopperMat, 
 		glm::vec3(1.0f, 0.5f, 2.0f), 
 		0.2f,
 		"CopperSphere");
-	std::shared_ptr<Sphere> pSphere2 = std::make_shared<Sphere>(sphere2SilverMat,
+	Sphere* pSphere2 = new Sphere(sphere2SilverMat,
 		glm::vec3(0.2f, 0.2f, 2.0f),
 		0.3f,
 		"SilverSphere");
-	std::shared_ptr<Sphere> pSphere3 = std::make_shared<Sphere>(sphere2SilverMat,
+	Sphere* pSphere3 = new Sphere(sphere2SilverMat,
 		glm::vec3(2.0f, 1.5f, 4.0f), 
 		0.4f,
 		"SliverSphere2");
-	std::shared_ptr<Plane> pPlaneBottom = std::make_shared<Plane>(greenRubberMat,
+	Plane* pPlaneBottom = new Plane(greenRubberMat,
 		Normal(0.0f, 1.0f, 0.0f), 
 		Point(0.0f, -3.0f, 0.0f),
 		"BottomPlane");
 	
-	std::shared_ptr<Plane> pPlaneLeft = std::make_shared<Plane>(Normal(1.0f, 0.0f, 0.0f), Point(-10.0f, 0.0f, 0.0f));
-	std::shared_ptr<Plane> pPlaneBack = std::make_shared<Plane>(Normal(0.0f, 0.0f, 1.0f), Point(0.0f, 0.0f, 10.0f));
+	Plane* pPlaneLeft = new Plane(sphere1CopperMat,
+		Normal(1.0f, 0.0f, 0.0f), 
+		Point(-10.0f, 0.0f, 0.0f),
+		"PlaneLeft");
+	Plane* pPlaneBack = new Plane(sphere1CopperMat,
+		Normal(0.0f, 0.0f, 1.0f), 
+		Point(0.0f, 0.0f, 10.0f),
+		"PlaneBack");
 
-	scene.AddObject(pSphere.get());
-	//scene.AddObject(pSphere2.get());
-	//scene.AddObject(pSphere3.get());
-	scene.AddObject(pPlaneBottom.get());
-	//scene.AddObject(pPlaneLeft.get());
-	//scene.AddObject(pPlaneBack.get());
+	Box* pBox1 = new Box(sphere2SilverMat, glm::vec3(2.0f, 0.0f, 3.0f), 1.0f, 1.0f, 1.0f, "FirstBox");
+
+	scene.AddObject(pSphere);
+	//scene.AddObject(pSphere2);
+	//scene.AddObject(pSphere3);
+	scene.AddObject(pPlaneBottom);
+	//scene.AddObject(pPlaneLeft);
+	//scene.AddObject(pPlaneBack);
+	//scene.AddObject(pBox1);
+
+	// ------------------------------------------------------------------------
+	// Launch the UI thread
+
+	UI* ui = new UI(&scene,
+		&MAX_REFLECTION_DEPTH,
+		&MAX_REFRACTION_DEPTH,
+		&moveSpeed,
+		&SquareLength,
+		&SampleCount,
+		&SampleDistance,
+		&UpdateRequired,
+		&Realtime,
+		&ShadowsEnabled,
+		&SoftShadowsEnabled,
+		&SuperSamplingEnabled,
+		&PlaneTexturingEnabled,
+		&ReflectionEnabled,
+		&RefractionEnabled,
+		&eLightModel);
+	sf::Thread uiThread(&UI::ProcessUI, ui);
+	uiThread.launch();
 
 	// ------------------------------------------------------------------------
 
@@ -1229,7 +1329,10 @@ int main(int argc, char **argv)
 		{
 			// "close requested" event: we close the window
 			if (event.type == sf::Event::Closed)
+			{
+				uiThread.terminate();
 				window.close();
+			}
 
 			if (event.type == sf::Event::MouseMoved)
 			{
@@ -1258,8 +1361,9 @@ int main(int argc, char **argv)
 				{
 					case sf::Keyboard::Escape:
 					{
+						uiThread.terminate();
 						window.close();
-
+						
 						break;
 					}
 					case sf::Keyboard::G:
@@ -1280,11 +1384,15 @@ int main(int argc, char **argv)
 
 						break;
 					}
+					case sf::Keyboard::P:
+					{
+						uiPrintIndex++;
+						texture.copyToImage().saveToFile("Print" + std::to_string(uiPrintIndex) + ".png");
+						std::cout << "Image ""Print" << uiPrintIndex << ".png"" exported" << std::endl;
+						break;
+					}
 				}
 			}
-
-			// Send the events to the GUI object
-			gui.handleEvent(event);
 		}
 
 		Update(fCurrentTime);
@@ -1294,25 +1402,26 @@ int main(int argc, char **argv)
 		for (unsigned int i = 0; i < ImageProcessingTaskList.size(); i++)
 		{
 			m_ThreadPool->schedule(ImageProcessingTaskList[i]);
+			//m_ThreadPool->wait();
 		}
 
 		m_ThreadPool->wait();
 #else
 
-		Draw(scene);
+		Render(0, iHeight);
 
 #endif // MULTITHREADING
 
-		
+		// Update done
+		UpdateRequired = false;
 
 		window.setTitle(std::to_string(fFPS));
 
 		// Update texture and draw
 		texture.update(pixels);
 		sprite.setTexture(texture);
+		texture.copyToImage().saveToFile("raytraced.png");
 		window.draw(sprite);
-
-		gui.draw();
 
 		// end the current frame
 		window.display();
@@ -1328,170 +1437,6 @@ int main(int argc, char **argv)
 	// ------------------------------------------------------------------------
 
 	return 0;
-}
-
-// ------------------------------------------------------------------------
-
-void SetupWidgets(tgui::Gui& gui)
-{
-	// ------------------------------------------------------------------------
-
-	// Setup the background 
-	tgui::Picture::Ptr background(gui);
-	bool bSuccess = background->load("background.png");
-	background->setSize(300, 400);
-	background->setPosition(10, 10);
-
-	// ------------------------------------------------------------------------
-
-	// Setup the reflection level label
-	tgui::Label::Ptr reflectionLevelLabel(gui);
-	reflectionLevelLabel->setText("ReflectionLevel");
-	reflectionLevelLabel->setPosition(12, 15);
-
-	// ------------------------------------------------------------------------
-
-	// Setup the reflection level edit box
-	tgui::EditBox::Ptr reflectionLevelEditBox(gui, "ReflectionLevel");
-	reflectionLevelEditBox->load("lib//TGUI//widgets//Black.conf");
-	reflectionLevelEditBox->setSize(180, 40);
-	reflectionLevelEditBox->setPosition(12, 55);
-
-	// ------------------------------------------------------------------------
-
-	// Setup the move speed label
-	tgui::Label::Ptr moveSpeedLabel(gui);
-	moveSpeedLabel->setText("MoveSpeed");
-	moveSpeedLabel->setPosition(12, 95);
-
-	// ------------------------------------------------------------------------
-
-	// Setup the move speed edit box
-	tgui::EditBox::Ptr moveSpeedEditBox(gui, "MoveSpeed");
-	moveSpeedEditBox->load("lib//TGUI//widgets//Black.conf");
-	moveSpeedEditBox->setSize(180, 40);
-	moveSpeedEditBox->setPosition(12, 135);
-
-	// ------------------------------------------------------------------------
-
-	// Setup the update settings button
-	tgui::Button::Ptr button(gui);
-	button->load("lib//TGUI//widgets//Black.conf");
-	button->setSize(100, 60);
-	button->setPosition(12, 300);
-	button->setText("Update");
-	button->setCallbackId((int)Button::UpdateSettingsID);
-	button->bindCallbackEx(updateButtonCallback, tgui::Button::LeftMouseClicked);
-
-	// ------------------------------------------------------------------------
-
-	comboBox = tgui::ComboBox::Ptr(gui, "PointLightList");
-	comboBox->load("lib//TGUI//widgets//Black.conf");
-	comboBox->setBorders(4, 4, 4, 4);
-	comboBox->setSize(300, 30);
-	comboBox->setPosition(12, 380);
-	comboBox->bindCallbackEx(comboBoxSelectionCallback, tgui::ComboBox::ItemSelected);
-
-	// Add point light sources
-	for (unsigned int lightIndex = 0; lightIndex < pointLightSources.size(); lightIndex++)
-	{
-		// Get the current light source
-		PointLight& currentLight = *pointLightSources[lightIndex];
-
-		comboBox->addItem(currentLight.GetName());
-	}
-
-	comboBox->setSelectedItem(-1);
-
-	// ------------------------------------------------------------------------
-
-	sliderXPtr = tgui::Slider::Ptr(gui, "PointLightPosX");
-	sliderXPtr->load("lib//TGUI//widgets//Black.conf");
-	sliderXPtr->setVerticalScroll(false);
-	sliderXPtr->setPosition(30, 200);
-	sliderXPtr->setMinimum(0);
-	sliderXPtr->setMaximum(SliderPositionAmplitude);
-
-	sliderYPtr = tgui::Slider::Ptr(gui, "PointLightPosY");
-	sliderYPtr->load("lib//TGUI//widgets//Black.conf");
-	sliderYPtr->setVerticalScroll(false);
-	sliderYPtr->setPosition(30, 240);
-	sliderYPtr->setMinimum(0);
-	sliderYPtr->setMaximum(SliderPositionAmplitude);
-
-	sliderZPtr = tgui::Slider::Ptr(gui, "PointLightPosZ");
-	sliderZPtr->load("lib//TGUI//widgets//Black.conf");
-	sliderZPtr->setVerticalScroll(false);
-	sliderZPtr->setPosition(30, 280);
-	sliderZPtr->setMinimum(0);
-	sliderZPtr->setMaximum(SliderPositionAmplitude);
-
-	// ------------------------------------------------------------------------
-}
-
-// ------------------------------------------------------------------------
-
-void updateButtonCallback(const tgui::Callback& callback)
-{
-	switch (callback.id)
-	{
-	case Button::UpdateSettingsID:
-	{
-		std::cout << "Settings updated." << std::endl;
-
-		// Get the number of reflections
-		tgui::EditBox::Ptr reflectionLevelEditBox = gui.get("ReflectionLevel");
-		if (reflectionLevelEditBox != nullptr)
-		{
-			sf::String value = reflectionLevelEditBox->getText();
-			if (value != "")
-			{
-				MAX_REFLECTION_DEPTH = std::stoi(value.toAnsiString());
-				std::cout << "Reflections level count: " << MAX_REFLECTION_DEPTH << std::endl;
-			}
-		}
-
-		// Get the move speed
-		tgui::EditBox::Ptr moveSpeedEditBox = gui.get("MoveSpeed");
-		if (moveSpeedEditBox != nullptr)
-		{
-			sf::String value = moveSpeedEditBox->getText();
-			if (value != "")
-			{
-				moveSpeed = std::stof(value.toAnsiString());
-				std::cout << "Move speed: " << moveSpeed << std::endl;
-			}
-		}
-
-		break;
-	}
-	default:
-		break;
-	}
-}
-
-// ------------------------------------------------------------------------
-
-void comboBoxSelectionCallback(const tgui::Callback& callback)
-{
-	// Get a reference to the selected point light
-	int iItemIndex = comboBox->getSelectedItemIndex();
-	if (iItemIndex != -1)
-	{
-		// Update the position of the selected point light
-		PointLight* pSelectedPointLight = pointLightSources[iItemIndex];
-		if (pSelectedPointLight != NULL)
-		{
-			glm::vec3 pos = pSelectedPointLight->Position;
-
-			std::cout << "Point light " << iItemIndex << " selected." << std::endl;
-			std::cout << "Position: " << pos.x << " " << pos.y << " " << pos.z << std::endl;
-
-			sliderXPtr->setValue((unsigned int)(pos.x + SliderPositionAmplitude * 0.5f));
-			sliderYPtr->setValue((unsigned int)(pos.y + SliderPositionAmplitude * 0.5f));
-			sliderZPtr->setValue((unsigned int)(pos.z + SliderPositionAmplitude * 0.5f));
-		}
-	}
 }
 
 // ------------------------------------------------------------------------
@@ -1523,111 +1468,9 @@ void SetupMultithread()
 		}
 
 		// Initialize task list for lambda calculation
-		ImageProcessingTaskList.push_back(boost::bind(&ProcessLines,
+		ImageProcessingTaskList.push_back(boost::bind(&Render,
 			iStartIndex,
 			iEndIndex));
-	}
-}
-
-// ------------------------------------------------------------------------
-
-void ProcessLines(int iStartLineIndex, int iEndLineIndex)
-{
-	// ------------------------------------------------------------------------
-	// Pre-compute camera values
-	float fTanHalfHorizFOV = glm::tan(rad(pCam->GetHorizontalFOV() / 2.0f));
-	float fTanHalfVertFOV = glm::tan(rad(pCam->GetVerticalFOV() / 2.0f));
-
-	float fHalfWidth = iWidth * 0.5f;
-	float fHalfHeight = iHeight * 0.5f;
-
-	// ------------------------------------------------------------------------
-	// Build a coordinate frame
-	vec3 vEyeTarget = pCam->GetCameraPosition() - pCam->GetCameraTarget();
-
-	vec3 w = glm::normalize(vEyeTarget);
-	vec3 u = glm::normalize(glm::cross(pCam->GetCameraUp(), w));
-	vec3 v = glm::normalize(glm::cross(w, u));
-
-	// ------------------------------------------------------------------------
-
-	int iCurrentPixel;
-
-	for (int iRow = iStartLineIndex; iRow < iEndLineIndex; iRow++)
-	{
-		for (int iColumn = 0; iColumn < iWidth; iColumn++)
-		{
-			// Anti-aliasing active ---------------------------------------------------------
-			if (SampleCount > 1.0f)
-			{
-				float rAcc = 0.0f;
-				float gAcc = 0.0f;
-				float bAcc = 0.0f;
-				float aAcc = 0.0f;
-
-				float startX = (float)iColumn;
-				float startY = (float)iRow;
-				float endX = (float)iColumn + 1.0f;
-				float endY = (float)iRow + 1.0f;
-
-				for (; startX < endX; startX += SampleDistance)
-				{
-					for (; startY < endY; startY += SampleDistance)
-					{
-						// -------------------------------------------------------------------
-
-						float fNormalizedXPos = ((fHalfWidth - startX) / fHalfWidth);
-						float fNormalizedYPos = ((fHalfHeight - startY) / fHalfHeight);
-
-						float fAlpha = fTanHalfHorizFOV * fNormalizedXPos;
-						float fBeta = fTanHalfVertFOV * fNormalizedYPos;
-
-						glm::vec3 rayDirection = glm::normalize(fAlpha * u + fBeta * v - w);
-
-						Ray camIJRay(pCam->GetCameraPosition(), rayDirection);
-
-						sf::Color surfaceColor = sf::Color(0, 0, 0, 255);
-						Trace(camIJRay, surfaceColor, scene, 0, 0, AmbientRefractiveIndex);
-
-						rAcc += surfaceColor.r;
-						gAcc += surfaceColor.g;
-						bAcc += surfaceColor.b;
-						aAcc += surfaceColor.a;
-
-						// -------------------------------------------------------------------
-					}
-				}
-
-				// Calculate final color
-				sf::Color finalPixelColor = sf::Color(
-					(sf::Uint8)(rAcc / SampleCount),
-					(sf::Uint8)(gAcc / SampleCount),
-					(sf::Uint8)(bAcc / SampleCount),
-					(sf::Uint8)(aAcc / SampleCount));
-
-				iCurrentPixel = 4 * (iColumn + iRow * iWidth);
-				SetPixelColor(iCurrentPixel, finalPixelColor);
-			}
-			else // No anti-aliasing ---------------------------------------------------------
-			{
-				float fNormalizedXPos = ((fHalfWidth - iColumn) / fHalfWidth);
-				float fNormalizedYPos = ((fHalfHeight - iRow) / fHalfHeight);
-
-				float fAlpha = fTanHalfHorizFOV * fNormalizedXPos;
-				float fBeta = fTanHalfVertFOV * fNormalizedYPos;
-
-				iCurrentPixel = 4 * (iColumn + iRow * iWidth);
-
-				glm::vec3 rayDirection = glm::normalize(fAlpha * u + fBeta * v - w);
-
-				Ray camIJRay(pCam->GetCameraPosition(), rayDirection);
-
-				sf::Color surfaceColor = sf::Color(0, 0, 0, 255);
-				Trace(camIJRay, surfaceColor, scene, 0, 0, AmbientRefractiveIndex);
-
-				SetPixelColor(iCurrentPixel, surfaceColor);
-			}
-		}
 	}
 }
 

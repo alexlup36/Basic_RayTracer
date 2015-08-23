@@ -5,7 +5,7 @@
 // -----------------------------------------------------------------------
 
 PointLight::PointLight()
-	: Light(vec3(0.0f, 0.0f, 0.0f), 50.0f)
+	: Light(vec3(0.0f, 0.0f, 0.0f), 50.0f, "PointLight")
 {
 	Position = vec3(0.0f, 0.0f, 0.0f);
 

@@ -2,5 +2,5 @@
 
 namespace Constants
 {
-	extern const float EPS = 0.001f;
+	extern const float EPS = 0.00001f;
 }

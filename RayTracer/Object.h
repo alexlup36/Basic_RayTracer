@@ -17,6 +17,7 @@ enum ObjectType
 	keDIRECTIONALLIGHT,
 	kePOINTLIGHT,
 	keAREALIGHT,
+	keBOX,
 };
 
 // ----------------------------------------------------------------------------
@@ -57,6 +58,9 @@ public:
 	virtual ~Object() { }
 	
 	virtual IntersectionInfo FindIntersection(const Ray& ray) { return IntersectionInfo(); }
+
+	virtual glm::vec3 GetPosition() = 0;
+	virtual void SetPosition(const glm::vec3& newPosition) = 0;
 
 	inline Material& GetMaterial() { return m_Material; }
 

@@ -5,7 +5,7 @@
 // -----------------------------------------------------------------------
 
 DirectionalLight::DirectionalLight()
-	: Light(vec3(1.0f, 1.0f, -1.0f), 1.0f)
+	: Light(vec3(1.0f, 1.0f, -1.0f), 1.0f, "DirectionalLight")
 {
 	Direction = vec3(1.0f, 1.0f, -1.0f);
 
