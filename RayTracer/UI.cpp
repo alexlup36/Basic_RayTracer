@@ -141,6 +141,25 @@ void UI::LoadUIElements()
 	if (*m_bSoftShadows) { softshadowsEnable->check(); }
 	softshadowsEnable->bindCallbackEx(&UI::checkBoxCallback, this, tgui::Checkbox::Checked | tgui::Checkbox::Unchecked);
 
+	// Setup the soft shadow sample count label
+	tgui::Label::Ptr softShadowSampleLabel(m_GUI);
+	softShadowSampleLabel->setText("SampleCount");
+	softShadowSampleLabel->setPosition(140, m_fTopAlign + 2.0f * (m_fVerticalPad + m_fRowHeight));
+	softShadowSampleLabel->setSize(100, 25);
+	softShadowSampleLabel->setAutoSize(true);
+	softShadowSampleLabel->setTextSize(12);
+
+	// Setup the soft shadow sample count edit box
+	tgui::EditBox::Ptr softShadowSampleEditBoxX(m_GUI, "SoftShadowSampleEditBoxX");
+	softShadowSampleEditBoxX->load("lib//TGUI//widgets//Black.conf");
+	softShadowSampleEditBoxX->setSize(40, m_fRowHeight);
+	softShadowSampleEditBoxX->setPosition(250, m_fTopAlign + 2.0f * (m_fVerticalPad + m_fRowHeight));
+
+	tgui::EditBox::Ptr softShadowSampleEditBoxZ(m_GUI, "SoftShadowSampleEditBoxZ");
+	softShadowSampleEditBoxZ->load("lib//TGUI//widgets//Black.conf");
+	softShadowSampleEditBoxZ->setSize(40, m_fRowHeight);
+	softShadowSampleEditBoxZ->setPosition(250 + 40 + m_fHorizontalPad, m_fTopAlign + 2.0f * (m_fVerticalPad + m_fRowHeight));
+
 	// ------------------------------------------------------------------------
 
 	// Super sampling checkbox
@@ -669,6 +688,38 @@ void UI::updateButtonCallback(const tgui::Callback& callback)
 		{
 			*m_uipMaxReflectionDepth = std::stoi(value.toAnsiString());
 			std::cout << "Reflections level count: " << *m_uipMaxReflectionDepth << std::endl;
+		}
+	}
+
+	// Get the soft shadow sample count
+	tgui::EditBox::Ptr softShadowEditBoxX = m_GUI.get("SoftShadowSampleEditBoxX");
+	tgui::EditBox::Ptr softShadowEditBoxZ = m_GUI.get("SoftShadowSampleEditBoxZ");
+	if (softShadowEditBoxX != nullptr && softShadowEditBoxZ != nullptr)
+	{
+		sf::String valueX = softShadowEditBoxX->getText();
+		sf::String valueZ = softShadowEditBoxZ->getText();
+
+		if (valueX != "" && valueZ != "")
+		{
+			int tempValueX = std::stoi(valueX.toAnsiString());
+			int tempValueZ = std::stoi(valueZ.toAnsiString());
+
+			if (tempValueX > 0 && tempValueZ > 0)
+			{
+				// Get the list of area lights
+				std::vector<AreaLight*>& areaLightList = m_pScene->AreaLightList();
+
+				for (unsigned int areaLightIndex = 0; areaLightIndex < areaLightList.size(); areaLightIndex++)
+				{
+					areaLightList[areaLightIndex]->SetSampleCount(tempValueX, tempValueZ);
+				}
+
+				std::cout << "Soft shadow sample count : " << tempValueX << " " << tempValueZ << std::endl;
+			}
+			else
+			{
+				std::cout << "Soft shadow sample count: Invalid value" << std::endl;
+			}
 		}
 	}
 

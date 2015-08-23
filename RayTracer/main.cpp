@@ -76,8 +76,8 @@ const float AmbientRefractiveIndex = 1.0003f;
 
 bool UpdateRequired = true;
 bool Realtime = false;
-bool ShadowsEnabled = true;
-bool SoftShadowsEnabled = true;
+bool ShadowsEnabled = false;
+bool SoftShadowsEnabled = false;
 bool SuperSamplingEnabled = false;
 bool PlaneTexturingEnabled = false;
 bool ReflectionEnabled = false;

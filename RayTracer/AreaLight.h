@@ -100,6 +100,17 @@ public:
 	inline const unsigned int GetSampleCountZ() const { return m_uiSampleCount_Z; }
 	inline const float GetSampleScale() const { return m_fSampleScale; }
 
+	inline const void SetSampleCount(unsigned int newX, unsigned int newZ)
+	{
+		m_uiSampleCount_X = newX;
+		m_uiSampleCount_Z = newZ;
+
+		m_fSampleScale = 1.0f / (m_uiSampleCount_X * m_uiSampleCount_Z);
+
+		m_fSampleSize_X = m_fLength / m_uiSampleCount_X;
+		m_fSampleSize_Z = m_fDepth / m_uiSampleCount_Z;
+	}
+
 	// Light color
 	sf::Color AmbientLight;
 	sf::Color DiffuseLight;

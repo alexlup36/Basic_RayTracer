@@ -11,7 +11,7 @@ PointLight::PointLight()
 
 	DiffuseLight = sf::Color(180, 210, 230, 255);
 	SpecularLight = sf::Color(255, 255, 255, 255);
-	AmbientLight = sf::Color(150, 150, 150, 255);
+	AmbientLight = sf::Color(50, 50, 50, 255);
 
 	ConstantAttenuation = 1.0f;
 	LinearAttenuation = 2.0f / Radius;
