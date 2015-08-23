@@ -23,9 +23,9 @@ public:
 		SetPosition(glm::vec3(0.0f, 0.0f, 0.0f));
 
 		// Set the default light properties
-		DiffuseLight = sf::Color(180, 210, 230, 255);
+		DiffuseLight = sf::Color(75, 85, 64, 255);
 		SpecularLight = sf::Color(255, 255, 255, 255);
-		AmbientLight = sf::Color(150, 150, 150, 255);
+		AmbientLight = sf::Color(20, 20, 20, 255);
 	}
 
 	AreaLight(const glm::vec3& pos,

@@ -1440,7 +1440,7 @@ int main(int argc, char **argv)
 	greenRubberMat.Diffuse = sf::Color(102, 128, 102, 255);
 	greenRubberMat.Specular = sf::Color(10, 179, 10, 255);
 	greenRubberMat.Shininess = 10.0f;
-	greenRubberMat.Reflectivity = 1.0f;
+	greenRubberMat.Reflectivity = 0.4f;
 	greenRubberMat.Transparency = 0.0f;
 
 	Sphere* pSphere = new Sphere(sphere1CopperMat, 
@@ -1451,32 +1451,21 @@ int main(int argc, char **argv)
 		glm::vec3(0.2f, 0.2f, 2.0f),
 		0.3f,
 		"SilverSphere");
-	Sphere* pSphere3 = new Sphere(sphere2SilverMat,
+	Sphere* pSphere3 = new Sphere(greenRubberMat,
 		glm::vec3(2.0f, 1.5f, 4.0f), 
-		0.4f,
+		0.6f,
 		"SliverSphere2");
 	Plane* pPlaneBottom = new Plane(greenRubberMat,
 		Normal(0.0f, 1.0f, 0.0f), 
 		Point(0.0f, -3.0f, 0.0f),
 		"BottomPlane");
-	
-	Plane* pPlaneLeft = new Plane(sphere1CopperMat,
-		Normal(1.0f, 0.0f, 0.0f), 
-		Point(-10.0f, 0.0f, 0.0f),
-		"PlaneLeft");
-	Plane* pPlaneBack = new Plane(sphere1CopperMat,
-		Normal(0.0f, 0.0f, 1.0f), 
-		Point(0.0f, 0.0f, 10.0f),
-		"PlaneBack");
 
 	Box* pBox1 = new Box(sphere2SilverMat, glm::vec3(2.0f, 0.0f, 3.0f), 1.0f, 1.0f, 1.0f, "FirstBox");
 
-	//scene.AddObject(pSphere);
-	//scene.AddObject(pSphere2);
-	//scene.AddObject(pSphere3);
+	scene.AddObject(pSphere);
+	scene.AddObject(pSphere2);
+	scene.AddObject(pSphere3);
 	scene.AddObject(pPlaneBottom);
-	//scene.AddObject(pPlaneLeft);
-	//scene.AddObject(pPlaneBack);
 	scene.AddObject(pBox1);
 
 	// ------------------------------------------------------------------------

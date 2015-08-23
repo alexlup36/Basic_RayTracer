@@ -16,7 +16,7 @@ public:
 		float radius = 1.0f)
 		: Position(pos), Radius(radius)
 	{
-		RenderRadius = 0.1f;
+		RenderRadius = 0.05f;
 
 		m_fSqRadius = RenderRadius * RenderRadius;
 	}
@@ -26,7 +26,7 @@ public:
 		const std::string& name)
 		: Position(pos), Radius(radius), Object(name)
 	{
-		RenderRadius = 0.1f;
+		RenderRadius = 0.05f;
 
 		m_fSqRadius = RenderRadius * RenderRadius;
 	}
