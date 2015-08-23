@@ -245,8 +245,6 @@ sf::Color PhongLighting(AreaLight& currentLight,
 	float bAcc = 0.0f;
 	float aAcc = 0.0f;
 
-	const std::vector<glm::vec3>& sampleLocations = currentLight.GetSampleLocations();
-
 	// Ambient component
 	sf::Color ambientComponent = currentLight.AmbientLight * material.Ambient;
 
@@ -257,47 +255,68 @@ sf::Color PhongLighting(AreaLight& currentLight,
 	}
 	else
 	{
-		for (unsigned int sampleLocationIndex = 0; sampleLocationIndex < sampleLocations.size(); sampleLocationIndex++)
+		unsigned int sampleCountX = currentLight.GetSampleCountX();
+		unsigned int sampleCountZ = currentLight.GetSampleCountZ();
+		float sampleSizeX = currentLight.GetSampleSizeX();
+		float sampleSizeZ = currentLight.GetSampleSizeZ();
+
+		for (unsigned int row = 0; row < sampleCountZ; row++)
 		{
-			sf::Color diffuseComponent, specularComponent;
-
-			// Diffuse component
-
-			// Calculate the light vector
-			glm::vec3 lightVector = sampleLocations[sampleLocationIndex] - position;
-			// Calculate the distance from the point light to the pixel position
-			float distance = glm::length(lightVector);
-
-			glm::vec3 lightDirection = glm::normalize(lightVector);
-			float fNormalDotLight = glm::dot(normal, lightDirection);
-			if (fNormalDotLight > 0.0f)
+			for (unsigned int col = 0; col < sampleCountX; col++)
 			{
-				sf::Color diffuseResult = material.Diffuse * currentLight.DiffuseLight;
+				// Find the current position for the current sample rectangle
+				float currentX = currentLight.GetLowerLayerPosition().x + col * sampleSizeX;
+				float currentZ = currentLight.GetLowerLayerPosition().z + row * sampleSizeZ;
 
-				diffuseComponent = sf::Color((sf::Uint8)(diffuseResult.r * fNormalDotLight * fShade),
-					(sf::Uint8)(diffuseResult.g * fNormalDotLight * fShade),
-					(sf::Uint8)(diffuseResult.b * fNormalDotLight * fShade));
+				// Generate a random offset within the current sample square
+				float xOffset = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / sampleSizeX));
+				float zOffset = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / sampleSizeZ));
+
+				// Calculate the position of the next sample
+				glm::vec3 currentSamplePoint = glm::vec3(currentX + xOffset,
+					currentLight.GetLowerLayerPosition().y - Constants::EPS,
+					currentZ + zOffset);
+
+				sf::Color diffuseComponent, specularComponent;
+
+				// Diffuse component
+
+				// Calculate the light vector
+				glm::vec3 lightVector = currentSamplePoint - position;
+				// Calculate the distance from the point light to the pixel position
+				float distance = glm::length(lightVector);
+
+				glm::vec3 lightDirection = glm::normalize(lightVector);
+				float fNormalDotLight = glm::dot(normal, lightDirection);
+				if (fNormalDotLight > 0.0f)
+				{
+					sf::Color diffuseResult = material.Diffuse * currentLight.DiffuseLight;
+
+					diffuseComponent = sf::Color((sf::Uint8)(diffuseResult.r * fNormalDotLight * fShade),
+						(sf::Uint8)(diffuseResult.g * fNormalDotLight * fShade),
+						(sf::Uint8)(diffuseResult.b * fNormalDotLight * fShade));
+				}
+
+				// Specular component
+				vec3& viewDirection = glm::normalize(pCam->GetCameraPosition() - position);
+				vec3& reflectionDirection = glm::reflect<vec3>(-lightDirection, normal);
+				float specular = std::pow(std::max(glm::dot(viewDirection, reflectionDirection), 0.0f), material.Shininess) * fShade;
+				sf::Color specularResult = material.Specular * currentLight.SpecularLight;
+				specularComponent = sf::Color((sf::Uint8)(specularResult.r * specular),
+					(sf::Uint8)(specularResult.g * specular),
+					(sf::Uint8)(specularResult.b * specular));
+
+				rAcc += (float)(ambientComponent.r + diffuseComponent.r + specularComponent.r);
+				gAcc += (float)(ambientComponent.g + diffuseComponent.g + specularComponent.g);
+				bAcc += (float)(ambientComponent.b + diffuseComponent.b + specularComponent.b);
+				aAcc += (float)(ambientComponent.a + diffuseComponent.a + specularComponent.a);
 			}
-
-			// Specular component
-			vec3& viewDirection = glm::normalize(pCam->GetCameraPosition() - position);
-			vec3& reflectionDirection = glm::reflect<vec3>(-lightDirection, normal);
-			float specular = std::pow(std::max(glm::dot(viewDirection, reflectionDirection), 0.0f), material.Shininess) * fShade;
-			sf::Color specularResult = material.Specular * currentLight.SpecularLight;
-			specularComponent = sf::Color((sf::Uint8)(specularResult.r * specular),
-				(sf::Uint8)(specularResult.g * specular),
-				(sf::Uint8)(specularResult.b * specular));
-
-			rAcc += (float)(ambientComponent.r + diffuseComponent.r + specularComponent.r);
-			gAcc += (float)(ambientComponent.g + diffuseComponent.g + specularComponent.g);
-			bAcc += (float)(ambientComponent.b + diffuseComponent.b + specularComponent.b);
-			aAcc += (float)(ambientComponent.a + diffuseComponent.a + specularComponent.a);
 		}
 
-		float r = glm::clamp(rAcc / sampleLocations.size(), 0.0f, 255.0f);
-		float g = glm::clamp(gAcc / sampleLocations.size(), 0.0f, 255.0f);
-		float b = glm::clamp(bAcc / sampleLocations.size(), 0.0f, 255.0f);
-		float a = glm::clamp(aAcc / sampleLocations.size(), 0.0f, 255.0f);
+		float r = glm::clamp(rAcc / (sampleCountX * sampleCountZ), 0.0f, 255.0f);
+		float g = glm::clamp(gAcc / (sampleCountX * sampleCountZ), 0.0f, 255.0f);
+		float b = glm::clamp(bAcc / (sampleCountX * sampleCountZ), 0.0f, 255.0f);
+		float a = glm::clamp(aAcc / (sampleCountX * sampleCountZ), 0.0f, 255.0f);
 
 		// Return the final color
 		return sf::Color((sf::Uint8)r,
@@ -411,8 +430,6 @@ sf::Color BlinnPhongLighting(AreaLight& currentLight,
 	float bAcc = 0.0f;
 	float aAcc = 0.0f;
 
-	const std::vector<glm::vec3>& sampleLocations = currentLight.GetSampleLocations();
-
 	// Ambient component
 	sf::Color ambientComponent = currentLight.AmbientLight * material.Ambient;
 
@@ -423,40 +440,61 @@ sf::Color BlinnPhongLighting(AreaLight& currentLight,
 	}
 	else
 	{
-		for (unsigned int sampleLocationIndex = 0; sampleLocationIndex < sampleLocations.size(); sampleLocationIndex++)
+		unsigned int sampleCountX = currentLight.GetSampleCountX();
+		unsigned int sampleCountZ = currentLight.GetSampleCountZ();
+		float sampleSizeX = currentLight.GetSampleSizeX();
+		float sampleSizeZ = currentLight.GetSampleSizeZ();
+
+		for (unsigned int row = 0; row < sampleCountZ; row++)
 		{
-			sf::Color diffuseComponent, specularComponent;
+			for (unsigned int col = 0; col < sampleCountX; col++)
+			{
+				// Find the current position for the current sample rectangle
+				float currentX = currentLight.GetLowerLayerPosition().x + col * sampleSizeX;
+				float currentZ = currentLight.GetLowerLayerPosition().z + row * sampleSizeZ;
 
-			// Diffuse component
-			glm::vec3 lightVector = sampleLocations[sampleLocationIndex] - position;
-			// Calculate the distance from the point light to the pixel position
-			float distance = glm::length(lightVector);
-			glm::vec3 lightDirection = glm::normalize(lightVector);
-			float fNormalDotLight = glm::max(glm::dot(normal, lightDirection), 0.0f);
-			sf::Color diffuseResult = material.Diffuse * currentLight.DiffuseLight;
-			diffuseComponent = sf::Color((sf::Uint8)(diffuseResult.r * fNormalDotLight * fShade),
-				(sf::Uint8)(diffuseResult.g * fNormalDotLight * fShade),
-				(sf::Uint8)(diffuseResult.b * fNormalDotLight * fShade));
+				// Generate a random offset within the current sample square
+				float xOffset = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / sampleSizeX));
+				float zOffset = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / sampleSizeZ));
 
-			// Specular component
-			vec3& viewDirection = glm::normalize(pCam->GetCameraPosition() - position);
-			vec3& halfVector = glm::normalize(lightDirection + viewDirection);
-			float specular = std::pow(std::max(glm::dot(normal, halfVector), 0.0f), material.Shininess) * fShade;
-			sf::Color specularResult = material.Specular * currentLight.SpecularLight;
-			specularComponent = sf::Color((sf::Uint8)(specularResult.r * specular),
-				(sf::Uint8)(specularResult.g * specular),
-				(sf::Uint8)(specularResult.b * specular));
+				// Calculate the position of the next sample
+				glm::vec3 currentSamplePoint = glm::vec3(currentX + xOffset,
+					currentLight.GetLowerLayerPosition().y - Constants::EPS,
+					currentZ + zOffset);
 
-			rAcc += (float)(ambientComponent.r + diffuseComponent.r + specularComponent.r);
-			gAcc += (float)(ambientComponent.g + diffuseComponent.g + specularComponent.g);
-			bAcc += (float)(ambientComponent.b + diffuseComponent.b + specularComponent.b);
-			aAcc += (float)(ambientComponent.a + diffuseComponent.a + specularComponent.a);
+				sf::Color diffuseComponent, specularComponent;
+
+				// Diffuse component
+				glm::vec3 lightVector = currentSamplePoint - position;
+				// Calculate the distance from the point light to the pixel position
+				float distance = glm::length(lightVector);
+				glm::vec3 lightDirection = glm::normalize(lightVector);
+				float fNormalDotLight = glm::max(glm::dot(normal, lightDirection), 0.0f);
+				sf::Color diffuseResult = material.Diffuse * currentLight.DiffuseLight;
+				diffuseComponent = sf::Color((sf::Uint8)(diffuseResult.r * fNormalDotLight * fShade),
+					(sf::Uint8)(diffuseResult.g * fNormalDotLight * fShade),
+					(sf::Uint8)(diffuseResult.b * fNormalDotLight * fShade));
+
+				// Specular component
+				vec3& viewDirection = glm::normalize(pCam->GetCameraPosition() - position);
+				vec3& halfVector = glm::normalize(lightDirection + viewDirection);
+				float specular = std::pow(std::max(glm::dot(normal, halfVector), 0.0f), material.Shininess) * fShade;
+				sf::Color specularResult = material.Specular * currentLight.SpecularLight;
+				specularComponent = sf::Color((sf::Uint8)(specularResult.r * specular),
+					(sf::Uint8)(specularResult.g * specular),
+					(sf::Uint8)(specularResult.b * specular));
+
+				rAcc += (float)(ambientComponent.r + diffuseComponent.r + specularComponent.r);
+				gAcc += (float)(ambientComponent.g + diffuseComponent.g + specularComponent.g);
+				bAcc += (float)(ambientComponent.b + diffuseComponent.b + specularComponent.b);
+				aAcc += (float)(ambientComponent.a + diffuseComponent.a + specularComponent.a);
+			}
 		}
 
-		float r = glm::clamp(rAcc / sampleLocations.size(), 0.0f, 255.0f);
-		float g = glm::clamp(gAcc / sampleLocations.size(), 0.0f, 255.0f);
-		float b = glm::clamp(bAcc / sampleLocations.size(), 0.0f, 255.0f);
-		float a = glm::clamp(aAcc / sampleLocations.size(), 0.0f, 255.0f);
+		float r = glm::clamp(rAcc / (sampleCountX * sampleCountZ), 0.0f, 255.0f);
+		float g = glm::clamp(gAcc / (sampleCountX * sampleCountZ), 0.0f, 255.0f);
+		float b = glm::clamp(bAcc / (sampleCountX * sampleCountZ), 0.0f, 255.0f);
+		float a = glm::clamp(aAcc / (sampleCountX * sampleCountZ), 0.0f, 255.0f);
 
 		// Return the final color
 		return sf::Color((sf::Uint8)r,
@@ -599,7 +637,6 @@ void Trace(const Ray& ray,
 			for (unsigned int lightIndex = 0; lightIndex < areaLightSources.size(); lightIndex++)
 			{
 				AreaLight& currentAreaLight = *areaLightSources[lightIndex];
-				currentAreaLight.ResetSamplePositions();
 
 				// Check the area light source
 				unsigned int sampleCountX = currentAreaLight.GetSampleCountX();
@@ -625,7 +662,6 @@ void Trace(const Ray& ray,
 						glm::vec3 currentSamplePoint = glm::vec3(currentX + xOffset,
 							currentAreaLight.GetLowerLayerPosition().y - Constants::EPS,
 							currentZ + zOffset);
-						currentAreaLight.AddSampleLocation(currentSamplePoint);
 
 						// Calculate the direction to the intersection point
 						glm::vec3 shadowVector = currentSamplePoint - newIntersect.IntersectionPoint;

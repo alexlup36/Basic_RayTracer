@@ -53,22 +53,10 @@ public:
 		AmbientLight = vAmbientLight;
 	}
 
-	inline void ResetSamplePositions()
-	{
-		m_vSampleLocations.clear();
-	}
-
-	inline void AddSampleLocation(const glm::vec3& samplePoint)
-	{
-		m_vSampleLocations.push_back(samplePoint);
-	}
-
 	inline glm::vec3 GetLowerLayerPosition()
 	{
 		return glm::vec3(m_fMinX, m_fMinY, m_fMinZ);
 	}
-
-	inline const std::vector<glm::vec3>& GetSampleLocations() { return m_vSampleLocations; }
 
 	inline IntersectionInfo FindIntersection(const Ray& ray)
 	{
@@ -96,8 +84,10 @@ public:
 	inline glm::vec3 GetPosition() { return Position; }
 	inline void SetPosition(const glm::vec3& newPosition) 
 	{
+		// Update position
 		Position = newPosition;
 
+		// Generate the triangles and calculate the extreme points
 		GenerateTriangles(Position, m_fLength, m_fHeight, m_fDepth);
 	}
 
@@ -117,7 +107,6 @@ public:
 
 private:
 	std::vector<Triangle> m_vTriangleList;
-	std::vector<glm::vec3> m_vSampleLocations;
 
 	float m_fLength;
 	float m_fDepth;
@@ -130,8 +119,8 @@ private:
 	float m_fMaxY;
 	float m_fMinY;
 
-	unsigned int m_uiSampleCount_X = 2;
-	unsigned int m_uiSampleCount_Z = 2;
+	unsigned int m_uiSampleCount_X = 4;
+	unsigned int m_uiSampleCount_Z = 4;
 
 	float m_fSampleScale = 1.0f / (m_uiSampleCount_X * m_uiSampleCount_Z);
 
