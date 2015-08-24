@@ -56,8 +56,8 @@ void SetupMultithread();
 
 // ------------------------------------------------------------------------
 // Window
-const unsigned int iWidth = 640;
-const unsigned int iHeight = 480;
+const unsigned int iWidth = 1280;
+const unsigned int iHeight = 720;
 const unsigned int iImageSize = iWidth * iHeight;
 const unsigned int iColor = 24;
 bool bGUIMode;
@@ -1444,15 +1444,15 @@ int main(int argc, char **argv)
 	greenRubberMat.Transparency = 0.0f;
 
 	Sphere* pSphere = new Sphere(sphere1CopperMat, 
-		glm::vec3(1.0f, 0.5f, 2.0f), 
+		glm::vec3(1.0f, 0.2f, 2.0f), 
 		0.2f,
 		"CopperSphere");
 	Sphere* pSphere2 = new Sphere(sphere2SilverMat,
-		glm::vec3(0.2f, 0.2f, 2.0f),
+		glm::vec3(0.2f, 0.1f, 2.0f),
 		0.3f,
 		"SilverSphere");
 	Sphere* pSphere3 = new Sphere(greenRubberMat,
-		glm::vec3(2.0f, 1.5f, 4.0f), 
+		glm::vec3(2.0f, 0.5f, 4.0f), 
 		0.6f,
 		"SliverSphere2");
 	Plane* pPlaneBottom = new Plane(greenRubberMat,
@@ -1460,7 +1460,12 @@ int main(int argc, char **argv)
 		Point(0.0f, -3.0f, 0.0f),
 		"BottomPlane");
 
-	Box* pBox1 = new Box(sphere2SilverMat, glm::vec3(2.0f, 0.0f, 3.0f), 1.0f, 1.0f, 1.0f, "FirstBox");
+	Box* pBox1 = new Box(sphere2SilverMat, 
+		glm::vec3(2.0f, 0.0f, 3.0f), 
+		1.0f, 
+		1.0f, 
+		1.0f, 
+		"FirstBox");
 
 	scene.AddObject(pSphere);
 	scene.AddObject(pSphere2);
